@@ -19,7 +19,10 @@ Controller: A = A, B or X = B, Back/View = Select, Start/Menu = Start,
   corrected at start-up; see port.log).
 
 Dev menu is on in this preview; set dev_menu=off to hide it.
-  F8 or Back+Start on the same pad opens it: fast-forward speed, screenshot,
+  F8 opens it, or on the pad Back (Select/View) + Start (Menu): press both, or one
+  within about 0.3 s of the other. A lone Select or Start still reaches the game
+  (after that 0.3 s window). Pads without an SDL mapping are read as X-Box 360
+  layout. Menu contents: fast-forward speed, screenshot,
   quick save/load (host-side slot, the game's battery save is untouched),
   pixel aspect, overscan crop, and only entries that have been verified.
   Hide it: [dev] dev_menu = off in config.ini, or MM_DEV_MENU=0.

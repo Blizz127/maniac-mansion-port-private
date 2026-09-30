@@ -138,7 +138,7 @@ is tested.
 This follows DEV_MENU_SPEC, except for one owner decision for the preview
 releases (mm-r2 onward): the menu is **on by default**. `[dev] dev_menu =
 off` or `MM_DEV_MENU=0` hides it, and `MM_CHEATS=0` disables it completely.
-Only verified rows are ever shown. Open and close it with **F8** or **Back+Start on the same pad**.
+Only verified rows are ever shown. Open and close it with **F8** or **Back+Start on the active pad**: both together, or one within about 300 ms (18 frames) of the other, in either order (`port/src/host/chord.c`, tested in `test_pads`). While a chord is possible the two buttons are held back from the game; a lone Select/Start is delivered after the window (a short tap is replayed for its length), so single presses always reach the game and a chord never leaks. Pads SDL has no mapping for are opened as raw joysticks with the Linux X-Box 360 layout (`pads_raw_layout`).
 While the menu is enabled, Select/Start are held back from the game for 6 frames,
 so the combo never reaches the game. Navigate with the D-pad or stick
 (edge-triggered, no auto-repeat), A to confirm and B to go back, or with the

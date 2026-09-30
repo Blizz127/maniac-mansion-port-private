@@ -50,3 +50,12 @@ bool pads_input(pad_set_t *s, int32_t instance, bool non_neutral);
 const pad_dev_t *pads_get(const pad_set_t *s, int32_t instance);
 
 #endif
+
+/* Raw-joystick fallback for pads SDL has no controller mapping for: the Linux
+ * X-Box 360 / xpad button order (0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 6 Back,
+ * 7 Start, 8 Guide, 9 L3, 10 R3), hat 0 as the D-pad (SDL_HAT_* bits: 1 up,
+ * 2 right, 4 down, 8 left) and axes 0/1 as the left stick. Returns the NES
+ * pad bits (PAD_* order: A B SELECT START UP DOWN LEFT RIGHT) and reports
+ * Back/Start and L3/R3 separately. Pure logic for the tests; SDL reads in main.c. */
+enum { PADS_RAW_A = 0, PADS_RAW_B = 1, PADS_RAW_X = 2, PADS_RAW_BACK = 6, PADS_RAW_START = 7, PADS_RAW_L3 = 9, PADS_RAW_R3 = 10 };
+uint8_t pads_raw_layout(uint32_t buttons, uint8_t hat, int ax, int ay, bool *back, bool *start, bool *l3, bool *r3);

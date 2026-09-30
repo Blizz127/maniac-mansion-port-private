@@ -171,3 +171,25 @@ bool pads_input(pad_set_t *s, int32_t instance, bool non_neutral)
     }
     return s->active == instance;
 }
+
+uint8_t pads_raw_layout(uint32_t buttons, uint8_t hat, int ax, int ay, bool *back, bool *start, bool *l3, bool *r3)
+{
+    enum { A = 1, B = 2, SELECT = 4, START = 8, UP = 16, DOWN = 32, LEFT = 64, RIGHT = 128 };
+    const int T = 16000;
+    uint8_t b = 0;
+    if (buttons & (1u << PADS_RAW_A)) b |= A;
+    if (buttons & ((1u << PADS_RAW_B) | (1u << PADS_RAW_X))) b |= B;
+    if (buttons & (1u << PADS_RAW_BACK)) b |= SELECT;
+    if (buttons & (1u << PADS_RAW_START)) b |= START;
+    if ((hat & 1) || ay < -T) b |= UP;
+    if ((hat & 4) || ay > T) b |= DOWN;
+    if ((hat & 8) || ax < -T) b |= LEFT;
+    if ((hat & 2) || ax > T) b |= RIGHT;
+    if ((b & (UP | DOWN)) == (UP | DOWN)) b &= (uint8_t)~(UP | DOWN);
+    if ((b & (LEFT | RIGHT)) == (LEFT | RIGHT)) b &= (uint8_t)~(LEFT | RIGHT);
+    if (back) *back = (buttons >> PADS_RAW_BACK) & 1;
+    if (start) *start = (buttons >> PADS_RAW_START) & 1;
+    if (l3) *l3 = (buttons >> PADS_RAW_L3) & 1;
+    if (r3) *r3 = (buttons >> PADS_RAW_R3) & 1;
+    return b;
+}

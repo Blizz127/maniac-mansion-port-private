@@ -17,6 +17,7 @@
 #include "config.h"
 #include "devmenu.h"
 #include "pads.h"
+#include "chord.h"
 #include "palette.h"
 #include "png.h"
 
@@ -205,9 +206,11 @@ static void keymap_load(keymap_t *km, config_t *cfg)
 
 typedef struct {
     SDL_GameController *gc[PADS_MAX];
+    SDL_Joystick *js[PADS_MAX]; /* raw fallback: set (and gc NULL) for pads without a mapping */
     int32_t id[PADS_MAX];
     int n;
     pad_set_t set;
+    bool back_now, start_now;   /* Back/Start of the active pad this frame (chord input) */
     uint32_t trace_window_ms;
     int trace_lines;
 } pads_t;
@@ -233,34 +236,64 @@ static uint8_t pad_buttons(SDL_GameController *gc)
     return b;
 }
 
+/* Raw-joystick read (pads without an SDL controller mapping): xpad layout. */
+static uint8_t raw_buttons(SDL_Joystick *js, bool *back, bool *start, bool *l3, bool *r3)
+{
+    uint32_t bt = 0;
+    int nb = SDL_JoystickNumButtons(js);
+    for (int i = 0; i < nb && i < 32; i++)
+        if (SDL_JoystickGetButton(js, i))
+            bt |= 1u << i;
+    uint8_t hat = SDL_JoystickNumHats(js) > 0 ? SDL_JoystickGetHat(js, 0) : 0;
+    int ax = SDL_JoystickNumAxes(js) > 0 ? SDL_JoystickGetAxis(js, 0) : 0;
+    int ay = SDL_JoystickNumAxes(js) > 1 ? SDL_JoystickGetAxis(js, 1) : 0;
+    return pads_raw_layout(bt, hat, ax, ay, back, start, l3, r3);
+}
+
 static void pads_open(pads_t *p, int device_index)
 {
-    if (!SDL_IsGameController(device_index) || p->n == PADS_MAX)
+    if (p->n == PADS_MAX)
         return;
-    SDL_GameController *gc = SDL_GameControllerOpen(device_index);
-    if (!gc)
-        return;
-    int32_t id = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc));
+    SDL_GameController *gc = NULL;
+    SDL_Joystick *js = NULL;
+    if (SDL_IsGameController(device_index)) {
+        gc = SDL_GameControllerOpen(device_index);
+        if (!gc)
+            return;
+        js = SDL_GameControllerGetJoystick(gc);
+    } else {
+        js = SDL_JoystickOpen(device_index); /* raw fallback */
+        if (!js)
+            return;
+        if (SDL_JoystickNumButtons(js) < 8) { /* not a gamepad-shaped device */
+            SDL_JoystickClose(js);
+            return;
+        }
+    }
+    int32_t id = SDL_JoystickInstanceID(js);
     for (int i = 0; i < p->n; i++)
         if (p->id[i] == id) {
-            SDL_GameControllerClose(gc);
+            if (gc) SDL_GameControllerClose(gc); else SDL_JoystickClose(js);
             return;
         }
     p->gc[p->n] = gc;
+    p->js[p->n] = gc ? NULL : js;
     p->id[p->n++] = id;
-    const char *name = SDL_GameControllerName(gc);
-    uint16_t vid = SDL_GameControllerGetVendor(gc), pid = SDL_GameControllerGetProduct(gc);
-    pads_added(&p->set, id, vid, pid, name, pad_buttons(gc) != 0);
-    logf_("[DEV_MENU] pad connected: %s vid:pid=%04x:%04x instance=%d%s", name ? name : "?", vid, pid, (int)id,
-          pads_is_steam_virtual(vid, pid, name) ? " (steam virtual)" : "");
+    const char *name = gc ? SDL_GameControllerName(gc) : SDL_JoystickName(js);
+    uint16_t vid = SDL_JoystickGetVendor(js), pid = SDL_JoystickGetProduct(js);
+    bool held = gc ? pad_buttons(gc) != 0 : raw_buttons(js, NULL, NULL, NULL, NULL) != 0;
+    pads_added(&p->set, id, vid, pid, name, held);
+    logf_("[DEV_MENU] pad connected: %s vid:pid=%04x:%04x instance=%d%s%s", name ? name : "?", vid, pid, (int)id,
+          pads_is_steam_virtual(vid, pid, name) ? " (steam virtual)" : "", gc ? "" : " (raw joystick, xpad layout)");
 }
 
 static void pads_close(pads_t *p, int32_t id)
 {
     for (int i = 0; i < p->n; i++)
         if (p->id[i] == id) {
-            SDL_GameControllerClose(p->gc[i]);
+            if (p->gc[i]) SDL_GameControllerClose(p->gc[i]); else if (p->js[i]) SDL_JoystickClose(p->js[i]);
             p->gc[i] = p->gc[--p->n];
+            p->js[i] = p->js[p->n];
             p->id[i] = p->id[p->n];
             pads_removed(&p->set, id);
             logf_("[DEV_MENU] pad removed: instance=%d", (int)id);
@@ -278,10 +311,19 @@ static uint8_t pads_poll(pads_t *p, uint8_t *hot)
         p->trace_window_ms = now;
         p->trace_lines = 0;
     }
+    p->back_now = p->start_now = false;
     for (int i = 0; i < p->n; i++) {
-        uint8_t b = pad_buttons(p->gc[i]);
-        bool l3 = SDL_GameControllerGetButton(p->gc[i], SDL_CONTROLLER_BUTTON_LEFTSTICK);
-        bool r3 = SDL_GameControllerGetButton(p->gc[i], SDL_CONTROLLER_BUTTON_RIGHTSTICK);
+        uint8_t b;
+        bool l3, r3, back, start;
+        if (p->gc[i]) {
+            b = pad_buttons(p->gc[i]);
+            l3 = SDL_GameControllerGetButton(p->gc[i], SDL_CONTROLLER_BUTTON_LEFTSTICK);
+            r3 = SDL_GameControllerGetButton(p->gc[i], SDL_CONTROLLER_BUTTON_RIGHTSTICK);
+            back = SDL_GameControllerGetButton(p->gc[i], SDL_CONTROLLER_BUTTON_BACK);
+            start = SDL_GameControllerGetButton(p->gc[i], SDL_CONTROLLER_BUTTON_START);
+        } else {
+            b = raw_buttons(p->js[i], &back, &start, &l3, &r3);
+        }
         bool non_neutral = b || l3 || r3;
         if (non_neutral && p->trace_lines < 3) {
             p->trace_lines++;
@@ -290,6 +332,8 @@ static uint8_t pads_poll(pads_t *p, uint8_t *hot)
         if (pads_input(&p->set, p->id[i], non_neutral)) {
             out = b;
             *hot = (uint8_t)((l3 ? 1 : 0) | (r3 ? 2 : 0));
+            p->back_now = back;
+            p->start_now = start;
         }
     }
     return out;
@@ -739,7 +783,7 @@ int main(int argc, char **argv)
     dms.aspect = v.par87 ? 0 : 1;
     dms.crop = v.crop ? 1 : 0;
     devmenu_t *dm = dev_on ? devmenu_create(&dms, logline) : NULL;
-    logf_("[DEV_MENU] %s", dev_on ? "enabled (F8 or Back+Start)" : "off");
+    logf_("[DEV_MENU] %s", dev_on ? "enabled (F8, or Back+Start on the pad: together, or one within 300 ms of the other)" : "off");
     uint8_t prg_id[8];
     for (int i = 0; i < 8; i++) {
         unsigned b;
@@ -789,8 +833,9 @@ int main(int argc, char **argv)
     }
     static char cap_top[120], cap_bottom[120];
     bool drain = false;          /* after the menu closes: wait for neutral */
-    int combo_hold = 0;          /* frames Back or Start has been held (opt-in) */
-    bool combo_fired = false;
+    chord_t chord;               /* Back+Start gesture (chord.h); swallows both while a chord is possible */
+    chord_init(&chord);
+    bool chord_active = false;   /* menu toggled by this gesture: pad nav waits for release */
     uint8_t prev_nav = 0;        /* pad nav edges: 1 up 2 down 4 ok 8 back */
 
     while (running) {
@@ -801,6 +846,10 @@ int main(int argc, char **argv)
             case SDL_QUIT: running = false; break;
             case SDL_CONTROLLERDEVICEADDED: pads_open(&pads, e.cdevice.which); break;
             case SDL_CONTROLLERDEVICEREMOVED: pads_close(&pads, e.cdevice.which); break;
+            case SDL_JOYDEVICEADDED: /* pads without a mapping: raw fallback (mapped ones arrive above too; dedup'd by id) */
+                if (!SDL_IsGameController(e.jdevice.which)) pads_open(&pads, e.jdevice.which);
+                break;
+            case SDL_JOYDEVICEREMOVED: pads_close(&pads, e.jdevice.which); break;
             case SDL_KEYDOWN: {
                 if (e.key.repeat)
                     break;
@@ -872,31 +921,23 @@ int main(int argc, char **argv)
             /* Back+Start on the same pad opens/closes the menu. With the
              * opt-in on, both are held back from the game for a short grace
              * window so the combo never also reaches the game. */
-            bool combo_now = false;
-            for (int i = 0; i < pads.n; i++)
-                if (SDL_GameControllerGetButton(pads.gc[i], SDL_CONTROLLER_BUTTON_BACK) &&
-                    SDL_GameControllerGetButton(pads.gc[i], SDL_CONTROLLER_BUTTON_START))
-                    combo_now = true;
-            bool either = gp & (PAD_SELECT | PAD_START);
-            if (combo_now && !combo_fired) {
-                combo_fired = true;
+            bool fire = false;
+            uint8_t pass = chord_step(&chord, pads.back_now, pads.start_now, PAD_SELECT, PAD_START, &fire);
+            if (fire) {
                 bool was = devmenu_is_open(dm);
                 devmenu_toggle(dm);
                 if (was)
                     drain = true;
                 menu = devmenu_is_open(dm);
+                chord_active = true;
+                logf_("[DEV_MENU] Back+Start chord: menu %s", menu ? "open" : "closed");
             }
-            if (!either) {
-                combo_fired = false;
-                combo_hold = 0;
-            } else {
-                combo_hold++;
-            }
-            if (combo_fired || (either && combo_hold <= 6))
-                gp &= ~(PAD_SELECT | PAD_START);
+            if (chord_active && !pads.back_now && !pads.start_now)
+                chord_active = false;
+            gp = (uint8_t)((gp & ~(PAD_SELECT | PAD_START)) | pass);
             /* pad navigation: edges only, no auto-repeat */
             uint8_t nav = 0;
-            if (menu && !combo_fired) {
+            if (menu && !chord_active) {
                 if (gp & PAD_UP) nav |= 1;
                 if (gp & PAD_DOWN) nav |= 2;
                 if (gp & PAD_A) nav |= 4;

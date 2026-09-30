@@ -20,7 +20,7 @@ target_link_libraries(mm-headless mmcore mmhost_common)
 
 find_package(SDL2 REQUIRED)
 set(MM_VERSION "dev" CACHE STRING "Version string baked into the port")
-add_library(mmhost STATIC src/host/config.c src/host/pads.c src/host/devmenu.c)
+add_library(mmhost STATIC src/host/config.c src/host/pads.c src/host/chord.c src/host/devmenu.c)
 target_include_directories(mmhost PUBLIC ${SDL2_INCLUDE_DIRS})
 
 add_executable(maniac-mansion-port src/host/main.c)
