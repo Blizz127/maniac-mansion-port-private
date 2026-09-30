@@ -171,6 +171,7 @@ static void usage(void)
 int main(int argc, char **argv)
 {
     const char *rom = NULL, *input = NULL, *hashes = NULL, *png_dir = NULL, *shots = NULL, *nestest = NULL;
+    const char *wram_dump = NULL;
     const char *ram_dump = NULL, *load_state = NULL, *save_state = NULL, *wav = NULL, *cdl_path = NULL;
     long save_state_at = -1;
     bool allow_unknown = false, blargg = false, state = false, index_only = false;
@@ -187,6 +188,7 @@ int main(int argc, char **argv)
         else if (ARG("--png-dir")) png_dir = v;
         else if (ARG("--shots")) shots = v;
         else if (ARG("--ram-dump")) ram_dump = v;
+        else if (ARG("--wram-dump")) wram_dump = v;
         else if (ARG("--wav")) wav = v;
         else if (ARG("--nmi-dump")) nmi_dump = fopen(v, "wb");
         else if (ARG("--ppu-dump")) ppu_dump = fopen(v, "wb");
@@ -284,6 +286,7 @@ int main(int argc, char **argv)
         fprintf(hf, "# mmfb1%s rom=%s frames=%ld\n", index_only ? "i" : "", cart.sha256, frames);
     }
     FILE *rf = ram_dump ? fopen(ram_dump, "wb") : NULL;
+    FILE *wrf = wram_dump ? fopen(wram_dump, "wb") : NULL; /* 8 KiB PRG-RAM per frame */
     FILE *wf = wav ? fopen(wav, "wb") : NULL;
     uint32_t wav_n = 0;
     if (wf) {
@@ -306,6 +309,8 @@ int main(int argc, char **argv)
         uint64_t h = fb_hash(nes.ppu.fb, index_only ? 0x3F : 0x1FF);
         if (rf)
             fwrite(nes.ram, 1, sizeof nes.ram, rf);
+        if (wrf)
+            fwrite(nes.prgram, 1, sizeof nes.prgram, wrf);
         if (f == save_state_at && save_state) {
             nes_state_save(&nes, state_buf, prg_id);
             FILE *sf = fopen(save_state, "wb");
@@ -346,6 +351,8 @@ int main(int argc, char **argv)
         fclose(hf);
     if (rf)
         fclose(rf);
+    if (wrf)
+        fclose(wrf);
     if (nmi_dump)
         fclose(nmi_dump);
     if (ppu_dump)
