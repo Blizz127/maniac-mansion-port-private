@@ -186,7 +186,8 @@ static void observe(nes_t*n,party_state_t*s){
     unsigned offset=(ptr-base)&65535u;
     if(id==1&&offset==0){unknown(&s->history);s->constructor_phase=1;s->changed=true;}
     if(id==1&&offset==0x327&&s->constructor_phase==1)s->constructor_phase=2;
-    if(id==163&&offset==0x63){unknown(&s->history);s->constructor_phase=0;s->load_observed=true;s->changed=true;}
+    /* Actual native menu: offset63 saves (mode2), offset77 loads (mode1). */
+    if(id==163&&offset==0x77){unknown(&s->history);s->constructor_phase=0;s->load_observed=true;s->changed=true;}
     if(id==131&&offset==0x9a&&s->constructor_phase==2){
         uint8_t ids[3];if(!roster(n,ids))return;
         unsigned mask=0;for(unsigned i=0;i<3;i++){

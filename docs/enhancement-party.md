@@ -30,7 +30,7 @@ cannot establish that an actor has never been selected. History uses eight
 versioned bytes: version, validity, activated mask, retired mask, starter-issued
 mask, and the three original roster identities. Invalid or missing metadata
 clears trust. The integrator isolates Enhanced save files and binds battery
-metadata to the full native battery image. A native in-game Load invalidates
+metadata to the full native battery image. Native in-game Save preserves trusted history. A native in-game Load invalidates
 history; a cold Continue without newly trusted metadata cannot change teammates.
 
 The module rejects Dave replacement, invalid or reordered rosters, actors with
@@ -81,3 +81,7 @@ rejoin, native selection and unsafe-state checks. `test_party_fresh ROM` boots
 from RESET, selects the original kids with ordinary controller input and checks
 the read-only provenance observer against a second unmodified instance. Neither
 native test substitutes generated fixtures for actual game execution.
+
+`test_party_saveload ROM ROAD_DAVE_SYD_WENDY_STATE` uses the original native
+menu to save, reopen and restore. It verifies that Save preserves history, Load
+invalidates it, and a rejected post-load team request leaves native state intact.
