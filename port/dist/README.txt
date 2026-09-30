@@ -15,8 +15,8 @@ Keyboard: arrows = D-pad, X = A, Z = B, Enter = Start, Right Shift = Select,
   F10 = screenshot, Alt+Enter = fullscreen, Esc = quit.
 Controller: A = A, B or X = B, Back/View = Select, Start/Menu = Start,
   L3 = fast-forward on/off, R3 (hold) = fast-forward.
-  Steam Deck / Legion Go pads work in Game Mode (Steam's ignore list is
-  corrected at start-up; see port.log).
+  Steam Deck / Legion Go pads work in Game Mode: Steam's virtual pad is made
+  visible and its ignore list corrected at start-up (see port.log).
 
 Dev menu is on in this preview; set dev_menu=off to hide it.
   F8 opens it, or on the pad Back (Select/View) + Start (Menu): press both, or one

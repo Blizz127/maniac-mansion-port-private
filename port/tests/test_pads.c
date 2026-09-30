@@ -76,9 +76,10 @@ static void test_policy(void)
 static void test_sdl_virtual(void)
 {
     setenv("SDL_GAMECONTROLLER_IGNORE_DEVICES", "0x28de/0x1205,0x17ef/0x61eb", 1);
-    setenv("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD", "1", 1);
+    unsetenv("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD"); /* the launcher does not set it; we must */
     pads_fix_environment(cap);
     CHECK(!strcmp(getenv("SDL_GAMECONTROLLER_IGNORE_DEVICES"), ""));
+    CHECK(getenv("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD") && !strcmp(getenv("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD"), "1"));
     CHECK(!strcmp(getenv("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"), "1"));
     setenv("SDL_VIDEODRIVER", "dummy", 1);
     if (SDL_Init(SDL_INIT_GAMECONTROLLER) != 0) {

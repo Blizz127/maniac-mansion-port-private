@@ -64,6 +64,13 @@ void pads_fix_environment(void (*log)(const char *line))
     }
     /* gamescope drops focus; keep receiving pad events regardless */
     setenv("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1", 1);
+    /* SDL >= 2.28 hides Steam's virtual gamepad (28de:11ff) unless this hint is set;
+     * Steam sets it for games IT launches, the Banshee launcher does not. Under Game
+     * Mode the physical pad's device node is root-only, so without this the port
+     * saw no pad at all (Legion Go, 2026-09-30). */
+    setenv("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD", "1", 1);
+    if (log)
+        log("[DEV_MENU] env SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD=1 (Steam virtual pad visible)");
 }
 
 bool pads_is_steam_virtual(uint16_t vid, uint16_t pid, const char *name)

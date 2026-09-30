@@ -641,6 +641,9 @@ int main(int argc, char **argv)
     /* §4a: un-hide physical pads before any SDL init. */
     pads_fix_environment(logline);
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+#ifdef SDL_HINT_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD
+    SDL_SetHint(SDL_HINT_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD, "1"); /* see pads_fix_environment */
+#endif
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) != 0) {
         fprintf(stderr, "error: SDL_Init failed: %s\n", SDL_GetError());
         return 1;
