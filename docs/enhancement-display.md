@@ -95,7 +95,7 @@ The owner-local proof runner executed the existing `newgame.mmin` trace for
 8,200 frames using the verified supported ROM. The moon/path/children/fence
 scene was visually inspected before and after:
 
-- 7,838 scene pixels changed; zero UI pixels changed.
+- 7,742 scene pixels changed; zero UI pixels changed (current-source core rerun).
 - The disabled conversion changed zero pixels.
 - The entire `nes_t` was byte-identical before and after both conversions.
 - Output dimensions remained 256×240 and the same per-pixel coordinates.
