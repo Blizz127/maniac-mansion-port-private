@@ -21,7 +21,7 @@ Current New kid (verb 7) preserves native scene actor selection and bypasses
 object snapping and the B free-cursor modifier.
 
 With quick verbs enabled, a Select press is withheld for 250 ms. A short release
-produces one native Select pulse (native kid switching); a longer hold opens a
+produces one native Select pulse (the existing Get/Use/Open cycle); a longer hold opens a
 host chooser. D-pad/arrow edges move selection, A confirms, B cancels. Select
 release alone does not confirm. Start combinations cancel the pending tap;
 existing developer-menu chord arbitration must run first. While a native
@@ -120,3 +120,10 @@ and open-door outcomes as plain native UI, with serialized native machine state
 equal after each step. These are cartridge/core execution checks, not physical
 controller or chase acceptance. Full final runtime suite results are reported
 by the integrator; no fixture, ROM, screenshot or derived listing is committed.
+
+The [NES manual](https://www.classicgaming.cc/pc/maniac-mansion/files/manual-maniac-mansion-nes.pdf)
+printed pages 10/12 documents this Select cycle; page 15 documents New Kid
+character selection. The Enhanced chooser extends a native quick-verb feature.
+Earlier design prose incorrectly attributed Select taps to kid switching;
+this correction changes documentation only. Native script 4 confirms the cycle,
+and script 164 defines New Kid separately.

@@ -17,7 +17,9 @@ teleport the actor or cancel a walk the native game already accepted. Menus,
 cutscenes and actor/room changes require neutral input before resuming. Holding
 an interaction verb must not repeatedly activate its script.
 
-Select tap must retain character switching. Held Select opens a quick
+The retail NES Select shortcut already cycles Get/Use/Open; the Enhanced
+chooser extends that existing shortcut. A short Select tap forwards one native
+pulse. Character switching remains available through native New Kid. Held Select opens a quick
 verb chooser, with D-pad/arrow navigation, A/X confirmation and B/Z cancellation.
 Start+Select dev-menu processing takes priority. On a controller, its existing
 300 ms chord grace precedes the 250 ms quick-verb hold recognition; the keyboard
@@ -195,3 +197,9 @@ load without item duplication. Actual native Save/Load invalidation and a
 controlled original death-script test passed. Native Continue/load trust,
 late character-specific puzzle routes and full endings remain limitations;
 see [enhancement-party.md](enhancement-party.md) for exact evidence and commands.
+
+## Beta-content research addendum
+
+Restoration is pending the owner's item selections already requested by the
+coordinator. Research only: see [enhancement-beta-content.md](enhancement-beta-content.md).
+No restoration toggle, assets, dialogue changes or puzzle changes have been added.
