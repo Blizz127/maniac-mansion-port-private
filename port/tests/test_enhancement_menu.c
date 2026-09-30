@@ -30,6 +30,18 @@ int main(void)
     devmenu_nav(m, DM_UP); devmenu_nav(m, DM_OK); assert(!s.kid_switching);
     devmenu_nav(m, DM_BACK); devmenu_nav(m, DM_BACK); devmenu_nav(m, DM_BACK);
     assert(!devmenu_is_open(m));
+    devmenu_t *restore = devmenu_create(&s, NULL); assert(restore);
+    devmenu_toggle(restore);
+    for (int i=0; i<3; ++i) devmenu_nav(restore, DM_DOWN);
+    devmenu_nav(restore, DM_OK); devmenu_nav(restore, DM_OK);
+    for (int i=0; i<7; ++i) devmenu_nav(restore, DM_DOWN);
+    devmenu_nav(restore, DM_OK); /* Content Restoration, after unchanged Teammates row. */
+    assert(!s.restore_ed && !s.restore_scumm);
+    devmenu_nav(restore, DM_OK); assert(s.restore_ed && !s.restore_scumm);
+    devmenu_nav(restore, DM_DOWN); devmenu_nav(restore, DM_OK); assert(s.restore_scumm);
+    devmenu_nav(restore, DM_OK); assert(!s.restore_scumm);
+    devmenu_nav(restore, DM_UP); devmenu_nav(restore, DM_OK); assert(!s.restore_ed);
+    devmenu_free(restore);
     assert(SDL_setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
     assert(SDL_Init(SDL_INIT_VIDEO) == 0);
     SDL_Window *w = SDL_CreateWindow("isolated menu test", 0, 0, 320, 240, 0); assert(w);
@@ -40,7 +52,8 @@ int main(void)
     devmenu_free(m); /* texture cleanup must precede renderer/video teardown */
     /* Original never offers an enhancement entry, even with stale ON values. */
     dm_state_t original = {.hold_walk = true, .object_snap = true, .quick_verbs = true,
-                           .smooth_display = true, .graphics_sample = true, .kid_switching = true};
+                           .smooth_display = true, .graphics_sample = true, .kid_switching = true,
+                           .restore_ed = true, .restore_scumm = true};
     m = devmenu_create(&original, NULL); assert(m);
     devmenu_toggle(m);
     for (int i=0; i<3; ++i) devmenu_nav(m, DM_DOWN);
@@ -49,6 +62,7 @@ int main(void)
     assert(original.ff_on);
     assert(original.hold_walk && original.object_snap && original.quick_verbs);
     assert(original.smooth_display && original.graphics_sample && original.kid_switching);
+    assert(original.restore_ed && original.restore_scumm);
     devmenu_free(m);
     SDL_DestroyRenderer(r); SDL_DestroyWindow(w); SDL_Quit();
     puts("enhancements menu: PASS (default OFF, independent toggles, return OFF, navigation)");

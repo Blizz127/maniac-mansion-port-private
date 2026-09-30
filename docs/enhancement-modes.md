@@ -96,7 +96,7 @@ scratch, not packaged game data.
 
 ## Integrated addendum status
 
-The final host has nine ROM-free CTest checks. All six optional choices persist
+The pre-restoration host had nine ROM-free CTest checks. All six original optional choices persist
 and reload in Enhanced; Original ignores stale ON values for all six. Enhanced
 teammate replacement uses the constrained native roadside implementation above,
 with real production-menu replacement and cross-launch quick-state rejoin checks.
@@ -104,3 +104,33 @@ Native Save/Load and controlled native death regression evidence is documented i
 [enhancement-party.md](enhancement-party.md). No push, release or deployment has
 been performed. Physical handheld operation, physical monitor cadence and a full
 playthrough remain outside the verified evidence.
+
+## Selected restoration profiles
+
+The owner subsequently selected all five content groups for Enhanced mode.
+The implemented subset is one earlier Ed wording substitution and both SCUMM
+references. Both settings default OFF, persist independently, and apply only
+at the next launch. Original ignores both even with stale ON config. It never
+allocates or maps a restoration copy. The rest of the selected content remains
+incomplete for the reasons in [enhancement-beta-content.md](enhancement-beta-content.md).
+
+A verified disposable PRG copy supplies only those three fixed-length text
+splices in Enhanced. The owner's cartridge storage is read-only; the native
+engine code, resource sizes and relative jumps retain the retail bytes.
+Restoration does not replace the emulator with a partial game port. Enhanced
+OFF and Original continue mapping the original verified PRG.
+
+Text profiles 1/2/3 use separate `quicksave/enhanced/restoration-N/slot1.mmst`
+slots and identities derived from their actual PRG bytes. Profile 0 retains the
+existing Enhanced slot. This preserves old states and rejects a state copied
+from a different text profile. Original quick-state paths and identity are
+unchanged. Fixed-length text leaves native battery/save layout unchanged;
+Enhanced battery state remains in its previously isolated namespace.
+
+Both production and diagnostic builds now pass ten CTest checks. The actual
+host verifies next-launch activation, menu/config persistence, separate profile
+slots and successful own-profile loads, rejected copied wrong-profile states,
+and unchanged owner ROM. With stale ON config for all eight settings, Original
+still matches Original OFF and Enhanced OFF for 900 native hashes and captured
+window pixels. Original battery isolation checks also pass. These are targeted
+checks, not proof of a full restored game or every ending.

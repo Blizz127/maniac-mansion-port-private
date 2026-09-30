@@ -200,6 +200,15 @@ see [enhancement-party.md](enhancement-party.md) for exact evidence and commands
 
 ## Beta-content research addendum
 
-Restoration is pending the owner's item selections already requested by the
-coordinator. Research only: see [enhancement-beta-content.md](enhancement-beta-content.md).
-No restoration toggle, assets, dialogue changes or puzzle changes have been added.
+The owner selected all five documented restoration groups for Enhanced only.
+Available authentic material and implementation status are tracked in [enhancement-beta-content.md](enhancement-beta-content.md).
+Missing assets must be reported rather than invented; unknown additions/new
+missions require a separate owner selection.
+
+The verified implemented subset is one earlier Ed wording and both SCUMM credit
+references, under the Enhanced Content Restoration page. Both default OFF and
+apply next launch; text profiles have separate quick-state slots. See
+[enhancement-restoration-text.md](enhancement-restoration-text.md) and
+[enhancement-restoration-assets.md](enhancement-restoration-assets.md) for the
+native-resource evidence and remaining selected content. This does not complete
+the five-group restoration request.

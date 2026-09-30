@@ -89,3 +89,35 @@ phone state and choosing follow-on scripts. Replacing its message with a shorter
 line could alter the available diversion window. Future validation must compare
 those native events and puzzle outcomes, not merely confirm that a replacement
 caption appears.
+
+## Integrated native and host evidence
+
+The final diagnostic source passes 1,046 checks with zero failures. Original
+with stale restoration options ON matches the retail instance for 900 complete
+native snapshots. Outside the three approved data spans, the entire PRG remains
+byte-identical, and the owner's original PRG remains immutable.
+
+Controlled original-handler execution of Ed script 140 completes in 2,760
+frames with 591 matching opcode-and-frame events in both instances. Controlled
+script 63 enters its credits section, bypassing the ending puzzle, and checks
+35 matching opcode-and-frame events across 1,580 frames. This is not a naturally
+completed ending or full playthrough. Post-scene checks preserve current room,
+cutscene flags, 25 actor rooms/costumes and native randomized phone variables.
+Before/after captures show only the expected text changes in the checked scenes:
+98, 86 and 176 differing pixels for Ed and the two credit references. The native
+PNG pairs were inspected; they remain ignored owner-local game-derived output.
+
+Reproduce with `test-restoration-native OWNER_ROM ROAD_DAVE_SYD_WENDY_STATE
+[LOCAL_IMAGE_DIRECTORY]`, built with `MM_BUILD_ROM_DIAGNOSTICS=ON`. Evidence
+remains under `build/enh-validation/restoration-native-final.log` and
+`restoration-proof/`; no fixture or game image is bundled.
+
+Production and diagnostic builds both pass ten CTest checks. The actual host
+check `port/tests/test_restoration_host.sh BUILD_DIRECTORY OWNER_ROM OUTPUT`
+verifies OFF defaults, actual menu persistence and next-launch activation,
+three independent Enhanced text-profile quick slots, successful own-profile
+loads and rejected copied wrong-profile states. Original ignores stale ON
+values; its quick-state location remains unchanged. The 900-frame mode/window
+and Original battery-isolation checks also pass with all eight settings ON in
+Original config. Owner ROM hashes remain unchanged. The five selected groups
+remain incomplete as listed in the separate content and asset documents.

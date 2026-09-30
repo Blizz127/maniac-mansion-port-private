@@ -25,6 +25,7 @@ typedef struct {
     bool kid_switching; /* Enhanced-only replacement; native New Kid stays available */
     int party_out, party_in; /* menu indices into the six non-Dave identities */
     bool req_party_swap;
+    bool restore_ed, restore_scumm; /* verified text only; applies next launch */
     bool smooth_display, graphics_sample; /* opt-in host presentation only */
     /* one-shot requests; the host clears them after acting */
     bool req_screenshot, req_quick_save, req_quick_load;

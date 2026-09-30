@@ -14,7 +14,7 @@ static const char *crop_labels[2] = {"NONE", "8 LINES"};
 static const char *party_labels[6] = {"SYD", "RAZOR", "MICHAEL", "BERNARD", "WENDY", "JEFF"};
 
 typedef enum { IT_PAGE, IT_TOGGLE, IT_CYCLE, IT_ACTION, IT_NOTE } item_kind_t;
-typedef enum { PG_ROOT, PG_WARP, PG_FINISH, PG_CHEATS, PG_OPTIONS, PG_ENHANCEMENTS, PG_TEAMMATES, PG_COUNT } page_t;
+typedef enum { PG_ROOT, PG_WARP, PG_FINISH, PG_CHEATS, PG_OPTIONS, PG_ENHANCEMENTS, PG_TEAMMATES, PG_RESTORATION, PG_COUNT } page_t;
 
 typedef struct {
     item_kind_t kind;
@@ -38,7 +38,7 @@ struct devmenu {
     SDL_Renderer *font_owner;
 };
 
-static const char *page_title[PG_COUNT] = {"DEV MENU", "WARP", "FINISH AREA", "CHEATS", "OPTIONS", "ENHANCEMENTS", "TEAMMATES"};
+static const char *page_title[PG_COUNT] = {"DEV MENU", "WARP", "FINISH AREA", "CHEATS", "OPTIONS", "ENHANCEMENTS", "TEAMMATES", "CONTENT RESTORATION"};
 
 static int page_items(devmenu_t *m, page_t p, item_t *out)
 {
@@ -63,9 +63,19 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SCENE COLOR SAMPLE", .toggle = &s->graphics_sample};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "TEAMMATE REPLACEMENT", .toggle = &s->kid_switching};
         out[n++] = (item_t){.kind = IT_PAGE, .label = "CHOOSE TEAMMATES", .page = PG_TEAMMATES};
+        out[n++] = (item_t){.kind = IT_PAGE, .label = "CONTENT RESTORATION", .page = PG_RESTORATION};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "HOLD A + D-PAD: WALK"};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "B + D-PAD: FREE CURSOR"};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "SELECT TAP: ORIGINAL"};
+        break;
+    case PG_RESTORATION:
+        if (!s->enhanced_mode) break;
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "EARLIER ED LINE", .toggle = &s->restore_ed};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SCUMM REFERENCES", .toggle = &s->restore_scumm};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "APPLIES NEXT LAUNCH"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "STATUE SOURCE: INCOMPLETE"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "POSTER SOURCE: INCOMPLETE"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "OTHER TEXT: NOT RESTORED"};
         break;
     case PG_TEAMMATES:
         if (!s->enhanced_mode || !s->kid_switching) {

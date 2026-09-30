@@ -1,11 +1,16 @@
-# NES beta-content research, pending owner selection
+# NES content restoration: selected scope and evidence
 
-Task 3b6b23789a0f, owner addendum, researched 2026-09-30. Restoration is
-**not authorized until the owner selects items**. The coordinator has already
-asked; do not send a duplicate selection request. This inventory supplies that
-decision. No restoration code, menu toggle, patch, asset import or puzzle change
-has been implemented. Any selected work belongs to Enhanced mode only; Original
-boot, owner ROM and Original saves retain their existing behavior.
+Task 3b6b23789a0f, researched 2026-09-30. The owner has selected ALL FIVE
+restoration groups: hallway statue; Ted's calendar and mummy poster; removed
+signs/jokes; earlier dialogue including Edna/Fred/Ed; SCUMM credit references.
+Selection is no longer pending. Implementation is authorized in Enhanced only,
+using authenticated available material. Original boot, owner ROM and Original
+saves remain unchanged. Unknown beta additions and new missions remain outside
+this decision. Missing material must be reported instead of recreated silently.
+
+The inventory below records provenance; it is not proof that every resource is
+available or restored. Implementation evidence follows as the selected work is
+verified.
 
 ## Documented pre-release NES edits
 
@@ -29,7 +34,8 @@ byte-level comparison against a particular authenticated beta cartridge.
 | arcade | Arcade naming history | Two earlier names preceded Tuna Diver; versions need distinguishing. |
 | credits | SCUMM / NES SCUMM references | Removed from ending credits. |
 
-These are candidate **selections**, not a blanket uncensoring plan. Suggested
+These identifiers describe the selected groups and their evidence. They do not
+authorize unknown additions or modern hack puzzles. Suggested
 but rejected Edna lines in the account are unshipped proposals, not recoverable
 beta content. Its description of hamster treatment explicitly says it survived
 the review; do not treat it as a USA beta-to-release removal.
@@ -86,13 +92,17 @@ An [uncensored-hack report](https://www.timeextension.com/news/2023/05/maniac-ma
 is a discovery lead, not proof of NES beta provenance. Its linked original
 RHDN author page returned HTTP 403 during this research. Consequently its extra
 restoration claims are not promoted to verified NES prototype facts. No patch
-or ROM was downloaded. Crockford's linked additional-content page also failed
-to load; it supplies no additional verified candidates here.
+or ROM was downloaded. The correct additional-content URL is
+[Things in Maniac Mansion](https://www.crockford.com/maniacthings.html), now
+verified directly. The earlier failed URL had an extra letter. This first-person
+page records earlier Edna capture and phone speeches, so those are documented
+NES-era dialogue. Exact
+encoded resources and script-flow compatibility still require verification.
 
 ## Selection and subsequent feasibility
 
-Await the coordinator's existing owner selection, using the IDs above. For any
-selected item, first identify authentic NES-version material and compare the
+The owner has selected the five groups above. For each selected item, identify
+authentic NES-version material and compare the
 affected retail resource, scripts, object state, hitbox and occlusion masks.
 If only computer-version art or a modern recreation is available, label that
 explicitly and obtain the owner's choice before substituting it. No reconstructed
@@ -115,3 +125,38 @@ short-tap code forwards a native Select pulse; held Select opens the broader
 chooser. This **extends** native quick verbs. Earlier design prose wrongly
 attributed the short tap to kid switching and has been corrected. No mapping or
 Original execution change was needed for this documentation correction.
+
+## Selected-group implementation status
+
+| Owner-selected group | Current result | Remaining material or verification |
+| --- | --- | --- |
+| Reclining hall statue | Not restored | No authenticated complete NES image/layout/placement/mask available. Retained name is insufficient. |
+| Calendar and mummy poster | Not restored | Retained offscreen objects and fragments are insufficient for authentic assembly. Preserve the surviving calendar date/death-day clue. |
+| Signs/jokes | Not restored | Authentic unused Disco Sucks tile fragments survive, but original placement/palette/layout is not verified. Shower/anatomy text requires verified native message handling. |
+| Earlier dialogue | One Ed wording substitution implemented | Fred and Edna lines remain unrestored. Capture selection and phone message waits/diversion timing need verified original handling, not generic string substitution. |
+| SCUMM references | Both references implemented | Retail credit layout and attribution retained; exact prototype byline layout was not recovered. |
+
+The two implemented text options live under Enhanced Options > Enhancements >
+Content Restoration, both OFF by default and effective next launch. They modify
+only a disposable in-memory PRG copy after complete retail/resource identity
+checks; see [enhancement-restoration-text.md](enhancement-restoration-text.md).
+Original still executes its unchanged retail PRG. Existing controls and both
+native New Kid selection and Enhanced teammate replacement remain available.
+
+Each active text profile has an independent Enhanced quick-state slot and an ID
+bound to its actual PRG bytes. Existing unmodified Enhanced and Original quick
+slots are not overwritten. The Enhanced battery format and location stay the
+same: these fixed-length text substitutions do not relocate code/resources or
+change puzzle state. Original saves remain separate and unchanged.
+
+**The five-group request is not complete.** No replacement art, full dialogue
+restoration, custom puzzle or unknown prototype addition has been fabricated.
+An owner-local authenticated NES prototype or asset/source set is needed to
+resolve the missing artwork and verify the earlier encoded resources; its path
+has been requested while implementation/testing proceeds.
+
+Phone clue handling requires the actual current digits: the retail new-game
+script randomizes the number among several variants. The number in an author's
+example is not a universal constant. Any future shower restoration must retain
+the generated clue and native dialing conditions. Current text changes leave
+initialization, shower, dialing and phone scripts untouched.

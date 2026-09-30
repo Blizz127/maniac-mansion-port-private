@@ -21,6 +21,7 @@
 #include "mode.h"
 #include "party.h"
 #include "enhanced_save.h"
+#include "restoration.h"
 #include "devmenu.h"
 #include "pads.h"
 #include "chord.h"
@@ -528,6 +529,8 @@ static void take_screenshot(const uint16_t *fb, devmenu_t *dm)
         devmenu_toast(dm, ok ? "SCREENSHOT SAVED" : "SCREENSHOT FAILED");
 }
 
+static unsigned active_restoration_profile; /* fixed for this launch, never a live toggle */
+
 static const char *quick_slot(mm_mode_t mode)
 {
     static char p[1100];
@@ -535,6 +538,11 @@ static const char *quick_slot(mm_mode_t mode)
     if (!mode_save_paths(path_data_dir(), mode, battery, sizeof battery, p, sizeof p)) {
         p[0] = 0;
         return p;
+    }
+    if (mode == MM_MODE_ENHANCED && active_restoration_profile) {
+        int size = snprintf(p, sizeof p, "%s/quicksave/enhanced/restoration-%u/slot1.mmst",
+                            path_data_dir(), active_restoration_profile);
+        if (size < 0 || (size_t)size >= sizeof p) { p[0] = 0; return p; }
     }
     snprintf(dir, sizeof dir, "%s", p);
     *strrchr(dir, '/') = 0;
@@ -864,19 +872,38 @@ int main(int argc, char **argv)
         return 0; /* No core power or save open when the chooser is closed. */
     }
     bool enhanced = mode == MM_MODE_ENHANCED;
-    logf_("[MODE] %s; runtime=full retail 6502 NES emulation; cartridge bytes unchanged; enhancement hooks %s",
+    logf_("[MODE] %s; runtime=full retail 6502 NES emulation; owner cartridge unchanged; enhancement hooks %s",
           mode_name(mode), enhanced ? "opt-in" : "OFF");
     remember_rom(used);
     logf_("rom: %s (sha256 %s) verified: Maniac Mansion (USA)", used, cart.sha256);
 
+    restoration_options_t restorations = {
+        .ed_dialogue = enhanced && config_bool(cfg, "enhancements", "restore_ed", false),
+        .scumm_credits = enhanced && config_bool(cfg, "enhancements", "restore_scumm", false)
+    };
+    active_restoration_profile = (restorations.ed_dialogue ? 1u : 0u) |
+                                 (restorations.scumm_credits ? 2u : 0u);
+    uint8_t *restored_prg = NULL;
+    if (active_restoration_profile) {
+        restored_prg = malloc(cart.prg_size);
+        if (!restored_prg) { logline("restoration: out of memory"); cart_free(&cart); config_free(cfg); SDL_Quit(); return 1; }
+        memcpy(restored_prg, cart.prg, cart.prg_size);
+        if (restoration_apply(restored_prg, cart.prg_size, enhanced, restorations) != RESTORATION_APPLIED) {
+            logline("restoration: source verification failed; game not started");
+            free(restored_prg); cart_free(&cart); config_free(cfg); SDL_Quit(); return 1;
+        }
+    }
+    logf_("[RESTORATION] active Ed line=%d SCUMM references=%d; verified text only; other selected content unavailable",
+          restorations.ed_dialogue, restorations.scumm_credits);
+    const uint8_t *runtime_prg = restored_prg ? restored_prg : cart.prg;
     static nes_t nes;
     int rate = config_int(cfg, "audio", "rate", 48000);
     nes_audio_config(&nes, rate);
-    nes_init(&nes, cart.prg, cart.prg_size);
+    nes_init(&nes, runtime_prg, cart.prg_size);
     nes_power(&nes, 0x00);
     party_state_t party; party_init(&party);
     save_t save = {0};
-    if (!save_open(&save, &nes, mode, &party)) return 1;
+    if (!save_open(&save, &nes, mode, &party)) { free(restored_prg); return 1; }
 
     /* audio */
     bool audio_on = config_bool(cfg, "audio", "enabled", true);
@@ -920,6 +947,8 @@ int main(int argc, char **argv)
                   (dev_env ? strcmp(dev_env, "0") != 0 : config_bool(cfg, "dev", "dev_menu", true));
     dm_state_t dms = {0};
     dms.enhanced_mode = enhanced;
+    dms.restore_ed = restorations.ed_dialogue; dms.restore_scumm = restorations.scumm_credits;
+    bool saved_restore_ed = dms.restore_ed, saved_restore_scumm = dms.restore_scumm;
     dms.kid_switching = enhanced && config_bool(cfg, "enhancements", "kid_switching", false);
     dms.party_in = 3; /* Bernard; Dave is excluded from both replacement lists. */
     bool saved_kids = dms.kid_switching, party_intent = false, party_waiting = false;
@@ -952,6 +981,9 @@ int main(int argc, char **argv)
         unsigned b;
         sscanf(cart.prg_sha256 + i * 2, "%2x", &b);
         prg_id[i] = (uint8_t)b;
+    }
+    if (restored_prg) {
+        restoration_identity(runtime_prg, cart.prg_size, prg_id);
     }
     mode_snapshot_id(prg_id, mode, prg_id);
     devkey_t devkeys[64];
@@ -1168,6 +1200,7 @@ int main(int argc, char **argv)
             if (!enhanced) {
                 dms.hold_walk = dms.object_snap = dms.quick_verbs = false;
                 dms.smooth_display = dms.graphics_sample = false;
+                dms.restore_ed = dms.restore_scumm = false;
             }
             if (dms.req_party_swap) {
                 static const unsigned actors[6] = {1, 2, 4, 5, 6, 7};
@@ -1179,6 +1212,16 @@ int main(int argc, char **argv)
                     menu = false; drain = true;
                     devmenu_toast(dm, "RELEASE INPUT TO SWAP");
                 }
+            }
+            if (saved_restore_ed != dms.restore_ed) {
+                saved_restore_ed = dms.restore_ed;
+                bool ok = config_save_bool(cfg, "enhancements", "restore_ed", saved_restore_ed);
+                devmenu_toast(dm, ok ? "SAVED; APPLIES NEXT LAUNCH" : "RESTORE SETTING SAVE FAILED");
+            }
+            if (saved_restore_scumm != dms.restore_scumm) {
+                saved_restore_scumm = dms.restore_scumm;
+                bool ok = config_save_bool(cfg, "enhancements", "restore_scumm", saved_restore_scumm);
+                devmenu_toast(dm, ok ? "SAVED; APPLIES NEXT LAUNCH" : "RESTORE SETTING SAVE FAILED");
             }
             if (saved_kids != dms.kid_switching) {
                 saved_kids = dms.kid_switching;
@@ -1390,6 +1433,7 @@ int main(int argc, char **argv)
     if (adev)
         SDL_CloseAudioDevice(adev);
     SDL_Quit();
+    free(restored_prg);
     cart_free(&cart);
     config_free(cfg);
     return 0;
