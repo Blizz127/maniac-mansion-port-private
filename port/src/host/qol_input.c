@@ -291,7 +291,8 @@ static void native_hook(nes_t *n, void *opaque)
         n->ram[2] &= (uint8_t)~0x40;
         n->ram[0x2f] &= (uint8_t)~0x40;
     }
-    if (s->options.object_snap && scene && verb != 7 && !s->policy.chooser && !s->policy.select_pending &&
+    if (s->options.object_snap && scene && verb != 7 &&
+        !(s->options.hold_walk && verb == 13 && (s->input & PAD_A)) && !s->policy.chooser && !s->policy.select_pending &&
         !(s->input & (PAD_B|PAD_SELECT|PAD_START))) {
         n->ram[2] &= 0xf0; /* snapping owns scene directions; B keeps free cursor */
         uint8_t edge = (uint8_t)(directions & ~old);

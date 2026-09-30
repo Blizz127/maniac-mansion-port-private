@@ -33,7 +33,11 @@ Turn on, Turn off and New kid. Controller and keyboard use the same combined inp
 Object snapping uses directional half-planes, weighted squared distance (four
 times lateral distance squared) and lower object ID to break exact ties. Selection
 should survive provider list reordering. Native free cursor remains available
-when snapping is disabled and while B plus a direction is held. This combination consumes B as a modifier;
+when snapping is disabled and while B plus a direction is held. With both
+hold-walk and snapping enabled, A plus a direction uses the native free cursor
+while native Walk-to is selected; directional snapping resumes on new edges
+after A is released. Object targets still cancel continued hold updates.
+B plus a direction consumes B as a modifier;
 a lone B retains its native action. Highlight only the
 currently selected visible hit-test point and clear it on room/actor changes.
 

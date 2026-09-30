@@ -15,8 +15,13 @@ int main(void)
     assert(!qol_input_step(&s,on,c,PAD_A,249).walk_update);
     assert(qol_input_step(&s,on,c,PAD_A,250).walk_update);
     assert(!qol_input_step(&s,on,c,PAD_A,251).walk_update);
+    c.cursor_x=24;
+    qol_result_t combined = qol_input_step(&s,on,c,PAD_A|PAD_RIGHT,255);
+    assert(combined.walk_update && combined.pad == (PAD_A|PAD_RIGHT));
     c.cursor_x=30;
-    assert(!qol_input_step(&s,on,c,0,260).walk_update);
+    assert(!qol_input_step(&s,on,c,PAD_RIGHT,260).walk_update);
+    assert(!s.holding_walk);
+    qol_input_step(&s,on,c,0,261);
     assert(!qol_input_step(&s,on,c,PAD_A,270).walk_update);
     c.menu=true;
     assert(qol_input_step(&s,on,c,PAD_A,600).pad==0);
