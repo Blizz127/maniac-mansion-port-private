@@ -107,3 +107,40 @@ The proof runner's state comparison proves conversion isolation, not a full
 playthrough or timer/music equivalence at arbitrary monitor refresh rates.
 The integrator must perform host toggle/persistence and disabled-regression
 checks after wiring. No push, deployment or publication is part of this lane.
+
+## Follow-up timing and core-state evidence
+
+`tests/presentation_timing.c` provides a standalone timer benchmark and
+simulated-display-clock state check, without opening an SDL window. Build it
+with the current worktree's `mmcore`, `presentation.c` and SDL2, then run:
+
+```sh
+presentation-timing /owner/local/original.nes port/traces/smoke.mmin
+```
+
+A local 120-deadline SDL timer sample measured the following. There was no
+renderer, VSync or core workload in the timer benchmark, so these numbers
+characterize waiting behavior on this machine, not end-to-end frame pacing.
+CPU time is process CPU time; elapsed time was about 1,997 ms per mode.
+
+| Wait mode | Mean lateness ms | p95 lateness ms | Maximum lateness ms | CPU ms | Delay calls |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original fixed 1 ms | 0.6112 | 1.4866 | 2.5799 | 30.888 | 1,753 |
+| Deadline helper | 0.1879 | 1.2166 | 4.0772 | 20.077 | 2,427 |
+
+The sample improved mean/p95 lateness and CPU time, but its worst lateness
+increased. The extra calls include `SDL_Delay(0)` yielding near the deadline.
+Scheduling noise, other processes and workload affect these values; this
+single sample does not establish consistent smoothness or CPU improvement.
+
+With the current-source core, the first 300 native frames of `smoke.mmin`
+were executed using simulated host ticks at 60, 120 and 144 Hz. Inputs were
+indexed by native frame, never by presentation tick. All 300 normalized
+`nes_state_save()` hashes and generated audio PCM hashes matched in each run;
+final normalized snapshots were also compared directly and were byte-identical.
+The common final state hash was `e88c41c71c259420` (64-bit FNV-1a).
+Host tick counts were 300, 600 and 719 respectively. The state includes
+CPU/PPU/APU clocks, RAM and framebuffer, so the comparison checks those
+components' identity for this short trace. It does not validate every timed
+puzzle, chase input, audio-device resampling, monitor refresh or heard music.
+There is no higher-FPS simulation in the test.
