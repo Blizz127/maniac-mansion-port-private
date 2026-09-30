@@ -4,6 +4,7 @@
 #     closed during a trace, every game frame hashes the same as a run with
 #     the opt-in off (the overlay is host-only; no guest writes);
 #  2. hard disable: MM_CHEATS=0 keeps the menu off even with MM_DEV_MENU=1;
+#     dev_menu=off / MM_DEV_MENU=0 hide it; it is on by default (preview policy);
 #  3. quick save/load restores the exact machine state;
 #  4. menu screenshots (root, options, empty group) for evidence.
 #   port/tests/test_devmenu.sh BUILD_DIR ROM OUT_DIR
@@ -20,7 +21,7 @@ run() { # name env...
         --frames ${FRAMES:-900} --hashes "$d/hashes.txt" $EXTRA >"$d/out.log" 2>&1
 }
 fail=0
-EXTRA="" run off
+EXTRA="" run off MM_DEV_MENU=0
 EXTRA="--window-shot 212:$out/menu-root.png --window-shot 262:$out/menu-options.png --window-shot 322:$out/menu-warp-empty.png" \
     run on MM_DEV_MENU=1 MM_DEV_KEYS="200:F8,230:DOWN,231:DOWN,232:DOWN,250:OK,280:BACK,281:UP,282:UP,283:UP,300:OK,340:BACK,341:BACK,400:F8,401:F1,420:F1,421:F8,450:F8"
 if cmp -s "$out/off/hashes.txt" "$out/on/hashes.txt"; then
@@ -36,10 +37,16 @@ else
     echo "FAIL hard disable"; fail=1
 fi
 EXTRA="" run default MM_DEV_KEYS="200:F8"
-if grep -q '\[DEV_MENU\] off' "$out/default/state/maniac-mansion-port/port.log" && ! grep -q 'scripted key' "$out/default/state/maniac-mansion-port/port.log"; then
-    echo "PASS off by default (scripted keys inert)"
+if grep -q '\[DEV_MENU\] enabled' "$out/default/state/maniac-mansion-port/port.log" && grep -q '\[DEV_MENU\] open' "$out/default/state/maniac-mansion-port/port.log"; then
+    echo "PASS on by default (preview policy)"
 else
-    echo "FAIL off by default"; fail=1
+    echo "FAIL on by default"; fail=1
+fi
+EXTRA="--set dev.dev_menu=off" run cfgoff MM_DEV_KEYS="200:F8"
+if grep -q '\[DEV_MENU\] off' "$out/cfgoff/state/maniac-mansion-port/port.log" && ! grep -q 'scripted key' "$out/cfgoff/state/maniac-mansion-port/port.log"; then
+    echo "PASS dev_menu=off hides it (scripted keys inert)"
+else
+    echo "FAIL dev_menu=off"; fail=1
 fi
 # quick save near 300, quick load near 600 on the no-input trace: after the
 # load, the run must replay the original timeline from the saved frame.

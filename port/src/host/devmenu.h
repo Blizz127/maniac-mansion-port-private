@@ -1,7 +1,7 @@
 /* Dev menu (the shared port dev-menu spec, DEV_MENU_SPEC.md).
  *
- * Opt-in only (MM_DEV_MENU=1 or [dev] dev_menu = on); MM_CHEATS=0 disables
- * it completely. Host-only: drawn over the presented frame, it never
+ * On by default in the preview releases; [dev] dev_menu = off or
+ * MM_DEV_MENU=0 hides it, and MM_CHEATS=0 disables it completely. Host-only: drawn over the presented frame, it never
  * touches guest memory. The root always lists Warp, Finish Area, Cheats
  * and Options; a page shows only verified entries, and an empty page shows
  * no selectable rows. The simulation keeps running while it is open. */

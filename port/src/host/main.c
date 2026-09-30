@@ -491,7 +491,7 @@ static void usage(void)
            "\n"
            "Keys: arrows = D-pad, X = A, Z = B, Enter = Start, Right Shift = Select,\n"
            "      F6 = fast-forward on/off, Backspace (hold) = fast-forward, F10 = screenshot,\n"
-           "      Alt+Enter = fullscreen, Esc = quit. Controllers: A = A, B/X = B,\n"
+           "      Alt+Enter = fullscreen, Esc = quit, F8 = dev menu. Controllers: A = A, B/X = B,\n"
            "      Back = Select, Start = Start, L3 = fast-forward on/off, R3 (hold) = fast-forward.\n",
            MM_VERSION, path_data_dir());
 }
@@ -727,11 +727,13 @@ int main(int argc, char **argv)
     static int16_t abuf[8192];
     uint8_t prev_hot = 0;
 
-    /* dev menu: opt-in; MM_CHEATS=0 disables it entirely */
+    /* dev menu: on by default in the preview releases (owner policy);
+     * [dev] dev_menu = off or MM_DEV_MENU=0 hides it, MM_CHEATS=0 disables
+     * it entirely. Only verified rows are ever shown. */
     const char *cheats_env = getenv("MM_CHEATS");
     const char *dev_env = getenv("MM_DEV_MENU");
     bool dev_on = !(cheats_env && !strcmp(cheats_env, "0")) &&
-                  ((dev_env && !strcmp(dev_env, "1")) || config_bool(cfg, "dev", "dev_menu", false));
+                  (dev_env ? strcmp(dev_env, "0") != 0 : config_bool(cfg, "dev", "dev_menu", true));
     dm_state_t dms = {0};
     dms.ff_speed = 1;
     dms.aspect = v.par87 ? 0 : 1;

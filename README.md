@@ -76,9 +76,11 @@ their defaults, are in `config.example.ini`. The defaults are the original
 game on an NTSC console: 8:7 pixels at an integer scale, and nothing
 enhanced.
 
-An optional **dev menu** (fast-forward speed, screenshots, quick save and
-load, display options) is off by default. Start with `MM_DEV_MENU=1`, then
-press **F8**, or **Back+Start** on the same controller.
+**Dev menu is on in this preview; set `dev_menu=off` to hide it.** Press
+**F8**, or **Back+Start** on the same controller, for fast-forward speed,
+screenshots, quick save and load, and display options. It only lists entries
+that have been verified. To hide it, set `dev_menu = off` under `[dev]` in
+`config.ini` (or `MM_DEV_MENU=0`). `MM_CHEATS=0` disables it completely.
 
 ## Status
 

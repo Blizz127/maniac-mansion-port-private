@@ -135,10 +135,11 @@ is tested.
 
 ## Dev menu
 
-This follows DEV_MENU_SPEC. It is **off by default**; `MM_DEV_MENU=1` or
-`[dev] dev_menu = on` enables it, and `MM_CHEATS=0` disables it even when
-requested. Open and close it with **F8** or **Back+Start on the same pad**.
-With the opt-in on, Select/Start are held back from the game for 6 frames,
+This follows DEV_MENU_SPEC, except for one owner decision for the preview
+releases (mm-r2 onward): the menu is **on by default**. `[dev] dev_menu =
+off` or `MM_DEV_MENU=0` hides it, and `MM_CHEATS=0` disables it completely.
+Only verified rows are ever shown. Open and close it with **F8** or **Back+Start on the same pad**.
+While the menu is enabled, Select/Start are held back from the game for 6 frames,
 so the combo never reaches the game. Navigate with the D-pad or stick
 (edge-triggered, no auto-repeat), A to confirm and B to go back, or with the
 arrows, Enter and Esc on the keyboard. The overlay is drawn on the presented
@@ -158,8 +159,8 @@ is untouched. Because it is a full snapshot, it is safe at any point. The
 spec's "field only" rule exists for ports that serialize game state.
 
 Keys that always work: F6/L3 fast-forward toggle, Backspace/R3 (hold),
-F10 screenshot, Alt+Enter fullscreen and Esc quit. Only with the opt-in:
-F1 help, F7 speed, F8 menu, F11/F12 quick save/load.
+F10 screenshot, Alt+Enter fullscreen and Esc quit. Only while the menu is
+enabled: F1 help, F7 speed, F8 menu, F11/F12 quick save/load.
 
 `port/tests/test_devmenu.sh BUILD ROM OUT` is the gate. It runs windowed
 under Xvfb and uses the harness-only `MM_DEV_KEYS="frame:KEY,…"` input, which
@@ -168,7 +169,7 @@ is inert unless the variable is set.
 | Check | Result |
 | --- | --- |
 | All-off identity: menu opened, navigated and closed during `smoke.mmin`, every frame hash equal to a run with the opt-in off | 900/900 identical |
-| Opens (F8), off by default (scripted keys inert), hard disable (`MM_CHEATS=0`) | pass |
+| Opens (F8), on by default, `dev_menu=off` hides it (scripted keys inert), hard disable (`MM_CHEATS=0`) | pass |
 | Quick save at frame 300, quick load at 600: the run replays the original from the saved frame | 200/200 frames identical |
 | Screenshots (root, options, empty group) | `build/devmenu-test/menu-*.png` |
 
