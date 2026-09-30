@@ -63,3 +63,29 @@ owner-local native test is a separate execution check: it must verify actual
 native print source bytes, script events and timing for the changed resources.
 Controlled script execution is not a natural full-ending playthrough. No game
 scripts, extracted assets or long copyrighted dialogue are committed.
+
+## Longer-message execution boundaries investigated
+
+The native print opcode enters at `$CDB3`; it saves the operand pointer in
+`$B9/$BA`, expands encoded text into `$6F0B…` through `$F522…$F5A7`, and
+restores the next bytecode fetch pointer at `$CDA8…$CDAF`. A hypothetical
+expanded-buffer replacement at `$F5B2` would leave the bytecode offsets intact,
+but would not establish identical native message duration. Native
+`waitForMessage` at `$C807` polls script variable 3 (`$6103`); display completion
+is part of script execution rather than an independent host subtitle timer.
+No such replacement hook is implemented.
+
+Retail capture script 37 selects three speeches using the native random-number
+operation, then waits for the message before clearing the captured actor's
+freeze bit. The primary description instead distinguishes earlier speeches by
+kid gender. Blind substitution into the random branches would misrepresent that
+behavior. A future restoration must verify both selection and shared capture
+state, including RNG progression, placement, freeze clearing and follow-on
+scripts.
+
+Retail phone script 35 has separate first/subsequent-call branches, a native
+message wait, actor movement and a later 1200-tick delay before restoring its
+phone state and choosing follow-on scripts. Replacing its message with a shorter
+line could alter the available diversion window. Future validation must compare
+those native events and puzzle outcomes, not merely confirm that a replacement
+caption appears.
