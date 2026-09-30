@@ -22,6 +22,9 @@ typedef struct {
     bool show_help;
     bool enhanced_mode; /* boot mode gates every enhancement */
     bool hold_walk, object_snap, quick_verbs;
+    bool kid_switching; /* Enhanced-only replacement; native New Kid stays available */
+    int party_out, party_in; /* menu indices into the six non-Dave identities */
+    bool req_party_swap;
     bool smooth_display, graphics_sample; /* opt-in host presentation only */
     /* one-shot requests; the host clears them after acting */
     bool req_screenshot, req_quick_save, req_quick_load;

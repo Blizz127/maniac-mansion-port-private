@@ -11,9 +11,10 @@ const int dm_ff_speeds[4] = {2, 4, 8, 0};
 static const char *ff_labels[4] = {"2X", "4X", "8X", "MAX"};
 static const char *aspect_labels[2] = {"8:7", "SQUARE"};
 static const char *crop_labels[2] = {"NONE", "8 LINES"};
+static const char *party_labels[6] = {"SYD", "RAZOR", "MICHAEL", "BERNARD", "WENDY", "JEFF"};
 
 typedef enum { IT_PAGE, IT_TOGGLE, IT_CYCLE, IT_ACTION, IT_NOTE } item_kind_t;
-typedef enum { PG_ROOT, PG_WARP, PG_FINISH, PG_CHEATS, PG_OPTIONS, PG_ENHANCEMENTS, PG_COUNT } page_t;
+typedef enum { PG_ROOT, PG_WARP, PG_FINISH, PG_CHEATS, PG_OPTIONS, PG_ENHANCEMENTS, PG_TEAMMATES, PG_COUNT } page_t;
 
 typedef struct {
     item_kind_t kind;
@@ -37,7 +38,7 @@ struct devmenu {
     SDL_Renderer *font_owner;
 };
 
-static const char *page_title[PG_COUNT] = {"DEV MENU", "WARP", "FINISH AREA", "CHEATS", "OPTIONS", "ENHANCEMENTS"};
+static const char *page_title[PG_COUNT] = {"DEV MENU", "WARP", "FINISH AREA", "CHEATS", "OPTIONS", "ENHANCEMENTS", "TEAMMATES"};
 
 static int page_items(devmenu_t *m, page_t p, item_t *out)
 {
@@ -60,9 +61,27 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD SELECT: QUICK VERBS", .toggle = &s->quick_verbs};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "DISPLAY FRAME PACING", .toggle = &s->smooth_display};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SCENE COLOR SAMPLE", .toggle = &s->graphics_sample};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "TEAMMATE REPLACEMENT", .toggle = &s->kid_switching};
+        out[n++] = (item_t){.kind = IT_PAGE, .label = "CHOOSE TEAMMATES", .page = PG_TEAMMATES};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "HOLD A + D-PAD: WALK"};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "B + D-PAD: FREE CURSOR"};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "SELECT TAP: ORIGINAL"};
+        break;
+    case PG_TEAMMATES:
+        if (!s->enhanced_mode || !s->kid_switching) {
+            out[n++] = (item_t){.kind = IT_NOTE, .label = "ENABLE TEAMMATE REPLACEMENT"};
+            break;
+        }
+        out[n++] = (item_t){.kind = IT_CYCLE, .label = "RETIRE", .cycle = &s->party_out,
+                            .ncycle = 6, .cycle_labels = party_labels};
+        out[n++] = (item_t){.kind = IT_CYCLE, .label = "BRING IN", .cycle = &s->party_in,
+                            .ncycle = 6, .cycle_labels = party_labels};
+        out[n++] = (item_t){.kind = IT_ACTION, .label = "REPLACE TEAMMATE", .request = &s->req_party_swap};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "SWAP AT STARTING ROAD"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "SELECT DAVE FIRST"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "ITEMS STAY WITH THEIR OWNER"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "NO CAPTIVE OR DEAD KID SWAPS"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "USE ENHANCED QUICK SAVES"};
         break;
     case PG_WARP:
         out[n++] = (item_t){.kind = IT_NOTE, .label = "NO VERIFIED WARP SPOTS YET."};

@@ -11,13 +11,23 @@ int main(void)
     for (int i=0; i<3; ++i) devmenu_nav(m, DM_DOWN);
     devmenu_nav(m, DM_OK); /* Options */
     devmenu_nav(m, DM_OK); /* Enhancements */
-    bool *choices[] = {&s.hold_walk, &s.object_snap, &s.quick_verbs, &s.smooth_display, &s.graphics_sample};
-    for (int i=0; i<5; ++i) {
+    bool *choices[] = {&s.hold_walk, &s.object_snap, &s.quick_verbs, &s.smooth_display, &s.graphics_sample, &s.kid_switching};
+    for (int i=0; i<6; ++i) {
         assert(!*choices[i]);
         devmenu_nav(m, DM_OK); assert(*choices[i]);
         devmenu_nav(m, DM_OK); assert(!*choices[i]);
         devmenu_nav(m, DM_DOWN);
     }
+    devmenu_nav(m, DM_OK); /* Teammates unavailable while OFF. */
+    devmenu_nav(m, DM_OK); assert(!s.req_party_swap);
+    devmenu_nav(m, DM_BACK);
+    devmenu_nav(m, DM_UP); devmenu_nav(m, DM_OK); assert(s.kid_switching);
+    devmenu_nav(m, DM_DOWN); devmenu_nav(m, DM_OK); /* Teammates */
+    devmenu_nav(m, DM_OK); assert(s.party_out == 1);
+    devmenu_nav(m, DM_DOWN); devmenu_nav(m, DM_OK); assert(s.party_in == 1);
+    devmenu_nav(m, DM_DOWN); devmenu_nav(m, DM_OK); assert(s.req_party_swap);
+    devmenu_nav(m, DM_BACK);
+    devmenu_nav(m, DM_UP); devmenu_nav(m, DM_OK); assert(!s.kid_switching);
     devmenu_nav(m, DM_BACK); devmenu_nav(m, DM_BACK); devmenu_nav(m, DM_BACK);
     assert(!devmenu_is_open(m));
     assert(SDL_setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
@@ -30,7 +40,7 @@ int main(void)
     devmenu_free(m); /* texture cleanup must precede renderer/video teardown */
     /* Original never offers an enhancement entry, even with stale ON values. */
     dm_state_t original = {.hold_walk = true, .object_snap = true, .quick_verbs = true,
-                           .smooth_display = true, .graphics_sample = true};
+                           .smooth_display = true, .graphics_sample = true, .kid_switching = true};
     m = devmenu_create(&original, NULL); assert(m);
     devmenu_toggle(m);
     for (int i=0; i<3; ++i) devmenu_nav(m, DM_DOWN);
@@ -38,7 +48,7 @@ int main(void)
     devmenu_nav(m, DM_OK); /* Original's first item is fast-forward, not Enhancements. */
     assert(original.ff_on);
     assert(original.hold_walk && original.object_snap && original.quick_verbs);
-    assert(original.smooth_display && original.graphics_sample);
+    assert(original.smooth_display && original.graphics_sample && original.kid_switching);
     devmenu_free(m);
     SDL_DestroyRenderer(r); SDL_DestroyWindow(w); SDL_Quit();
     puts("enhancements menu: PASS (default OFF, independent toggles, return OFF, navigation)");

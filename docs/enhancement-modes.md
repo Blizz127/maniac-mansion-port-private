@@ -52,9 +52,10 @@ reset puzzles, invent items, transfer story abilities by accident or remove
 Dave. Menus, pending commands, dialogue/cutscenes, chase/capture and running
 character-specific actions require explicit treatment and actual ROM tests.
 
-No party-state mutation is implemented by this design contract alone. Unsupported
-or unverified states must be refused with an understandable reason rather than
-presented as a working feature.
+The constrained implementation is described in [enhancement-party.md](enhancement-party.md).
+It uses original native handlers, with history established by observing new-game
+construction or restored from a checksummed enhanced quick state. Unsupported
+or unverified states are refused with an understandable reason.
 
 ## Verified boot-mode behavior
 
@@ -74,6 +75,9 @@ claimed by this device-pipeline test.
 A disposable Original battery sentinel remains byte-identical during Enhanced
 execution. Enhanced writes its own quick state; copying that state into the
 Original slot is rejected, while Enhanced loads its own state successfully.
+Enhanced quick states now wrap the unchanged core snapshot with checksummed party
+history. Battery sidecars bind that history to all 8,192 saved PRGRAM bytes.
+Legacy enhanced states can load, but lack trusted replacement history.
 The owner-local ROM SHA-256 remains unchanged.
 
 An independent read-only instruction observer over 180 live native frames
@@ -88,3 +92,15 @@ save checks after the frame/window comparisons have already passed. The script
 uses isolated Xvfb and disposable config/data roots. Screenshots and states stay
 under ignored build output. Native instruction evidence remains in owner-local
 scratch, not packaged game data.
+
+
+## Integrated addendum status
+
+The final host has nine ROM-free CTest checks. All six optional choices persist
+and reload in Enhanced; Original ignores stale ON values for all six. Enhanced
+teammate replacement uses the constrained native roadside implementation above,
+with real production-menu replacement and cross-launch quick-state rejoin checks.
+Native Save/Load and controlled native death regression evidence is documented in
+[enhancement-party.md](enhancement-party.md). No push, release or deployment has
+been performed. Physical handheld operation, physical monitor cadence and a full
+playthrough remain outside the verified evidence.

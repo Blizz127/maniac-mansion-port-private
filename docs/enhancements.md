@@ -66,7 +66,10 @@ frequency or refresh changes cannot implement it safely.
 
 ## Settings
 
-New menu choices are under Options > Enhancements. Changes are persisted with a
+New menu choices are under Options > Enhancements in Enhanced mode. The boot
+choice defaults to Original every launch. Teammate replacement is also OFF by
+default; its constraints and native/save-history evidence are documented in
+[enhancement-party.md](enhancement-party.md). Changes are persisted with a
 same-directory atomic config-file replacement that preserves unrelated settings,
 ROM paths, input mappings and comments. Existing command-line and environment
 configuration precedence still applies at next launch. A menu save failure is
@@ -115,7 +118,8 @@ integrated as `e9aca0e`, `eaff03a`, and `19c3f4a`. No source or package was push
   80,379 APU writes over 8,936 frames. Core source and snapshot/save layout are
   unchanged from the baseline.
 - The host script checks 900-frame identity with enhancements OFF, presentation
-  ON, and menu toggles used; all five choices persist and reload. Trace playback
+  ON, and menu toggles used; the initial five choices persist and reload; the party option is included in
+  the addendum checks. Trace playback
   intentionally bypasses live input enhancements. The native fixture tests
   separately establish OFF full-machine-state identity with live input.
 - Actual USA ROM routines match the visible-hit-test adapter at 7,168 grid points,
@@ -171,3 +175,23 @@ local waiting benchmarks show improved averages but sometimes worse maximum
 lateness. The graphics change is only a reversible color sample. Faster actor
 movement is not implemented: original actor pacing, scripts, NPCs and timers
 remain intact. Save expansion and all additional proposals above remain proposals.
+
+
+## Owner addendum: integrated mode and team changes
+
+Original is the per-boot default and executes the complete unchanged retail ROM
+through the NES core; it never binds enhancement observers or transactions.
+Enhanced has separate battery/quicksave paths and a distinct snapshot identity.
+All six optional choices, including teammate replacement, default OFF and persist
+only as settings for Enhanced. Original saves retain their existing paths and
+raw formats; Enhanced quick states carry checksummed native state and history.
+
+Mid-game replacement is intentionally restricted to an idle starting road with
+Dave selected, Dave remaining in the first roster slot, and eligible teammates.
+Inventory stays actor-owned, starter items are granted once through native
+handlers, and captive/dead/transformed/busy actors cannot be swapped. The host
+proof replaces Syd with Bernard and rejoins Syd after a restart/Enhanced quick
+load without item duplication. Actual native Save/Load invalidation and a
+controlled original death-script test passed. Native Continue/load trust,
+late character-specific puzzle routes and full endings remain limitations;
+see [enhancement-party.md](enhancement-party.md) for exact evidence and commands.

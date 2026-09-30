@@ -75,9 +75,9 @@ Retail ROM-derived scripts, fixtures and detailed disassembly evidence remain
 owner-local and are not included in these source files.
 
 The native test executables require the owner's local ROM; no game data is
-bundled. `test_party_native ROM ROAD_DAVE_SYD_WENDY_STATE
+bundled. `test-party-native ROM ROAD_DAVE_SYD_WENDY_STATE
 ORIGINAL_DAVE_RAZOR_SYD_STATE [CHASE_STATE CAPTURE_STATE]` runs replacement,
-rejoin, native selection and unsafe-state checks. `test_party_fresh ROM` boots
+rejoin, native selection and unsafe-state checks. `test-party-fresh ROM` boots
 from RESET, selects the original kids with ordinary controller input and checks
 the read-only provenance observer against a second unmodified instance. Neither
 native test substitutes generated fixtures for actual game execution.
@@ -85,3 +85,49 @@ native test substitutes generated fixtures for actual game execution.
 `test_party_saveload ROM ROAD_DAVE_SYD_WENDY_STATE` uses the original native
 menu to save, reopen and restore. It verifies that Save preserves history, Load
 invalidates it, and a rejected post-load team request leaves native state intact.
+
+## Integrated host evidence
+
+The input implementation `130315b` is integrated as `9c3bd82`; its Save/Load
+observer correction `ff97d58` is integrated as `f0ad4b7`. Actual Save/Load testing
+caught the original misidentification: native script 163 offset `0x63` is Save,
+and `0x77` is Load. The corrected original-controller menu test records both
+operations, keeps history valid on Save, clears it on Load, and verifies that a
+rejected replacement after Load leaves the complete native snapshot unchanged
+(17 checks, zero failures).
+
+The production host, in isolated Xvfb, loads an explicitly verified initial
+Dave/Syd/Wendy fixture as a trusted Enhanced quick state, navigates the actual
+Enhancements/Teammates menu, and replaces Syd with Bernard. Dave/Wendy and all
+four item ownership records remain intact and unique. The resulting checksummed
+quick state contains activated/issued mask `0x35`, retired mask `0x01`. A second
+application launch loads that state and rejoins Syd while retiring Bernard;
+all inventories remain unique, and retired mask becomes `0x10` without issuing
+another starter. These host tests exercise real menu, dispatcher and persistence
+code; the seeded fixture is distinguished from the separate genuine RESET
+provenance test.
+
+The native replacement suite passes 263 checks, including 90 Original and 90
+Enhanced option-OFF full-state comparisons, three replacement/rejoin cycles,
+native New Kid selection, capacity/reordered-Dave guards and cancellation.
+The RESET/original-controller provenance test passes 1,502 checks with no
+metadata injection and per-frame state equality against an unmodified instance.
+
+A controlled call through the original variable setter and script starter runs
+original death script 61: 1,040 native script opcodes over 86 frames produce
+Wendy's zero costume, freeze/death flags, grave placement and destroyed starter
+ownership. The module denies replacement without changing the snapshot (15
+checks). This is actual native death-routine execution, **not** a naturally
+triggered gameplay death. Normal death-puzzle routes, late character-specific
+puzzles and endings remain unverified.
+
+Enhanced quick states preserve trusted history; older raw Enhanced snapshots
+can load with history unavailable. Native in-game Load/Continue currently clears
+replacement trust even if battery metadata was present. Normal gameplay remains
+available, but further teammate replacement requires a trusted Enhanced quick
+state or a new Enhanced game. Do not infer compatibility with every native save
+or character-specific puzzle route from these tests.
+
+Optional diagnostics: `test-party-saveload ROM ROAD_DAVE_SYD_WENDY_STATE` and
+`test-party-death ROM ROAD_DAVE_SYD_WENDY_STATE`. The latter explicitly labels its
+controlled native script call. ROM/state fixtures remain owner-local.

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "../core/cart.h"
 #include "../core/nes.h"
@@ -18,6 +19,8 @@
 #include "presentation.h"
 #include "qol_input.h"
 #include "mode.h"
+#include "party.h"
+#include "enhanced_save.h"
 #include "devmenu.h"
 #include "pads.h"
 #include "chord.h"
@@ -149,12 +152,14 @@ static bool find_rom(config_t *cfg, const char *cli_rom, cart_t *cart, char *err
 /* ---------------------------------------------------------------- saves */
 
 typedef struct {
-    char path[1100];
-    uint8_t last[8192];
+    char path[1100], metadata_path[1120];
+    uint8_t last[8192], metadata_last[PARTY_HISTORY_BYTES];
+    size_t metadata_last_size;
+    bool enhanced;
     uint32_t last_write_ms;
 } save_t;
 
-static bool save_open(save_t *s, nes_t *nes, mm_mode_t mode)
+static bool save_open(save_t *s, nes_t *nes, mm_mode_t mode, party_state_t *party)
 {
     char dir[1100], quick[1100];
     if (!mode_save_paths(path_data_dir(), mode, s->path, sizeof s->path, quick, sizeof quick)) {
@@ -173,21 +178,48 @@ static bool save_open(save_t *s, nes_t *nes, mm_mode_t mode)
         logf_("battery save: none yet (%s)", s->path);
     }
     memcpy(s->last, nes->prgram, sizeof s->last);
+    s->enhanced = mode == MM_MODE_ENHANCED;
+    if (s->enhanced) {
+        snprintf(s->metadata_path, sizeof s->metadata_path, "%s.party", s->path);
+        uint8_t metadata[PARTY_HISTORY_BYTES]; size_t size = 0;
+        if (enhanced_battery_metadata_read(s->metadata_path, nes->prgram, metadata, sizeof metadata, &size) &&
+            party_restore_history(party, metadata, size)) {
+            memcpy(s->metadata_last, metadata, size); s->metadata_last_size = size;
+        }
+    }
     return true;
 }
 
-static void save_flush(save_t *s, nes_t *nes, bool force)
+static void save_flush(save_t *s, nes_t *nes, bool force, party_state_t *party)
 {
+    if (s->enhanced && (party->pending || party->executing)) return;
     uint32_t now = SDL_GetTicks();
-    if (!force && now - s->last_write_ms < 2000)
-        return;
+    if (!force && now - s->last_write_ms < 2000) return;
     s->last_write_ms = now;
-    if (!memcmp(s->last, nes->prgram, sizeof s->last))
-        return;
-    if (write_atomic(s->path, nes->prgram, sizeof nes->prgram))
+    bool changed = memcmp(s->last, nes->prgram, sizeof s->last) != 0;
+    uint8_t metadata[PARTY_HISTORY_BYTES];
+    size_t size = s->enhanced && party_history_encode(&party->history, metadata) ? sizeof metadata : 0;
+    bool history_changed = s->enhanced && (size != s->metadata_last_size ||
+                           (size && memcmp(metadata, s->metadata_last, size)));
+    if (!changed && !history_changed) return;
+    if (changed) {
+        if (!write_atomic(s->path, nes->prgram, sizeof nes->prgram)) {
+            logf_("battery save: cannot write %s: %s", s->path, strerror(errno));
+            return;
+        }
         memcpy(s->last, nes->prgram, sizeof s->last);
-    else
-        logf_("battery save: cannot write %s: %s", s->path, strerror(errno));
+    }
+    if (s->enhanced) {
+        if (enhanced_battery_metadata_write(s->metadata_path, nes->prgram, metadata, size)) {
+            if (size) memcpy(s->metadata_last, metadata, size);
+            s->metadata_last_size = size;
+        } else {
+            /* This generated sidecar must not remain trusted with stale history. */
+            unlink(s->metadata_path);
+            s->metadata_last_size = 0;
+            logline("enhanced party history: cannot persist; next load will require verified history");
+        }
+    }
 }
 
 /* ---------------------------------------------------------------- input */
@@ -512,27 +544,68 @@ static const char *quick_slot(mm_mode_t mode)
 
 /* Quick save/load are whole-machine snapshots in a host-side slot; the
  * game's own battery save is untouched. */
-static void quick_save(nes_t *nes, const uint8_t id[8], devmenu_t *dm, mm_mode_t mode)
+static void quick_save(nes_t *nes, const uint8_t id[8], devmenu_t *dm, mm_mode_t mode,
+                       party_state_t *party)
 {
-    static uint8_t buf[sizeof(nes_t) + 64];
-    nes_state_save(nes, buf, id);
-    bool ok = write_atomic(quick_slot(mode), buf, nes_state_size());
+    if (mode == MM_MODE_ENHANCED && (party->pending || party->executing)) {
+        if (dm) devmenu_toast(dm, "WAIT FOR TEAMMATE SWAP");
+        return;
+    }
+    bool ok;
+    if (mode == MM_MODE_ENHANCED) {
+        uint8_t metadata[PARTY_HISTORY_BYTES];
+        size_t size = party_history_encode(&party->history, metadata) ? sizeof metadata : 0;
+        ok = enhanced_snapshot_save(quick_slot(mode), id, nes, metadata, size);
+    } else {
+        static uint8_t buf[sizeof(nes_t) + 64];
+        nes_state_save(nes, buf, id);
+        ok = write_atomic(quick_slot(mode), buf, nes_state_size());
+    }
     logf_("[DEV_MENU] quick save %s: %s", ok ? "done" : "FAILED", quick_slot(mode));
-    if (dm)
-        devmenu_toast(dm, ok ? "QUICK SAVE DONE" : "QUICK SAVE FAILED");
+    if (dm) devmenu_toast(dm, ok ? "QUICK SAVE DONE" : "QUICK SAVE FAILED");
 }
 
-static void quick_load(nes_t *nes, const uint8_t id[8], devmenu_t *dm, mm_mode_t mode)
+static void quick_load(nes_t *nes, const uint8_t id[8], devmenu_t *dm, mm_mode_t mode,
+                       party_state_t *party)
 {
-    static uint8_t buf[sizeof(nes_t) + 64];
-    FILE *f = fopen(quick_slot(mode), "rb");
-    size_t n = f ? fread(buf, 1, sizeof buf, f) : 0;
-    if (f)
-        fclose(f);
-    const char *why = !f ? "NO QUICK SAVE YET" : nes_state_load(nes, buf, n, id) ? NULL : "QUICK SAVE IS FROM ANOTHER MODE/BUILD";
+    if (mode == MM_MODE_ENHANCED && (party->pending || party->executing)) {
+        if (dm) devmenu_toast(dm, "WAIT FOR TEAMMATE SWAP");
+        return;
+    }
+    const char *why = NULL;
+    if (mode == MM_MODE_ENHANCED) {
+        uint8_t metadata[PARTY_HISTORY_BYTES]; size_t size = 0;
+        enhanced_load_result_t result = enhanced_snapshot_load(quick_slot(mode), id, nes,
+                                                               metadata, sizeof metadata, &size);
+        if (result == ENHANCED_LOAD_FAILED) why = "QUICK SAVE INVALID OR MISSING";
+        else {
+            party_destroy(party); party_init(party);
+            if (result == ENHANCED_LOAD_VERIFIED) party_restore_history(party, metadata, size);
+            /* Legacy/missing history remains unknown; it must never issue new items. */
+        }
+    } else {
+        static uint8_t buf[sizeof(nes_t) + 64];
+        FILE *f = fopen(quick_slot(mode), "rb");
+        size_t n = f ? fread(buf, 1, sizeof buf, f) : 0;
+        if (f) fclose(f);
+        why = !f ? "NO QUICK SAVE YET" : nes_state_load(nes, buf, n, id) ? NULL : "QUICK SAVE IS FROM ANOTHER MODE/BUILD";
+    }
     logf_("[DEV_MENU] quick load %s", why ? why : "done");
-    if (dm)
-        devmenu_toast(dm, "%s", why ? why : "QUICK LOAD DONE");
+    if (dm) devmenu_toast(dm, "%s", why ? why : "QUICK LOAD DONE");
+}
+
+/* Enhanced dispatcher owns the core callback and composes the optional native
+ * input adapter with the party observer/transaction. Original never binds it. */
+typedef struct {
+    void (*input_hook)(nes_t *, void *);
+    void *input_userdata;
+    party_state_t *party;
+} enhancement_dispatch_t;
+static void enhancement_dispatch(nes_t *nes, void *userdata)
+{
+    enhancement_dispatch_t *dispatch = userdata;
+    if (dispatch->input_hook) dispatch->input_hook(nes, dispatch->input_userdata);
+    party_exec(nes, dispatch->party);
 }
 
 /* Harness-only scripted dev keys (spec §9): MM_DEV_KEYS="frame:KEY,...",
@@ -801,8 +874,9 @@ int main(int argc, char **argv)
     nes_audio_config(&nes, rate);
     nes_init(&nes, cart.prg, cart.prg_size);
     nes_power(&nes, 0x00);
+    party_state_t party; party_init(&party);
     save_t save = {0};
-    if (!save_open(&save, &nes, mode)) return 1;
+    if (!save_open(&save, &nes, mode, &party)) return 1;
 
     /* audio */
     bool audio_on = config_bool(cfg, "audio", "enabled", true);
@@ -846,6 +920,12 @@ int main(int argc, char **argv)
                   (dev_env ? strcmp(dev_env, "0") != 0 : config_bool(cfg, "dev", "dev_menu", true));
     dm_state_t dms = {0};
     dms.enhanced_mode = enhanced;
+    dms.kid_switching = enhanced && config_bool(cfg, "enhancements", "kid_switching", false);
+    dms.party_in = 3; /* Bernard; Dave is excluded from both replacement lists. */
+    bool saved_kids = dms.kid_switching, party_intent = false, party_waiting = false;
+    unsigned party_outgoing = 0, party_incoming = 0;
+    enhancement_dispatch_t dispatch = {.party = &party};
+    party_update(&party, enhanced, dms.kid_switching, false);
     dms.hold_walk = enhanced && config_bool(cfg, "enhancements", "hold_walk", false);
     dms.object_snap = enhanced && config_bool(cfg, "enhancements", "object_snap", false);
     dms.quick_verbs = enhanced && config_bool(cfg, "enhancements", "quick_verbs", false);
@@ -858,8 +938,8 @@ int main(int argc, char **argv)
     int32_t qol_pad_owner = pads.set.active;
     dms.smooth_display = enhanced && config_bool(cfg, "enhancements", "smooth_display", false);
     dms.graphics_sample = enhanced && config_bool(cfg, "enhancements", "graphics_sample", false);
-    logf_("[MODE] effective enhancements hold_walk=%d object_snap=%d quick_verbs=%d smooth_display=%d graphics_sample=%d",
-          dms.hold_walk, dms.object_snap, dms.quick_verbs, dms.smooth_display, dms.graphics_sample);
+    logf_("[MODE] effective enhancements hold_walk=%d object_snap=%d quick_verbs=%d smooth_display=%d graphics_sample=%d kid_switching=%d",
+          dms.hold_walk, dms.object_snap, dms.quick_verbs, dms.smooth_display, dms.graphics_sample, dms.kid_switching);
     bool saved_smooth = dms.smooth_display, saved_graphics = dms.graphics_sample;
     v.graphics_sample = dms.graphics_sample;
     dms.ff_speed = 1;
@@ -1027,7 +1107,7 @@ int main(int argc, char **argv)
              * window so the combo never also reaches the game. */
             bool fire = false;
             bool use_timed = dms.hold_walk || dms.object_snap || dms.quick_verbs ||
-                             dms.smooth_display || dms.graphics_sample;
+                             dms.smooth_display || dms.graphics_sample || dms.kid_switching;
             if (use_timed != timed_chord_on) {
                 chord_init(&chord); chord_timed_init(&enhanced_chord);
                 chord.fired = enhanced_chord.fired = pads.back_now || pads.start_now;
@@ -1075,11 +1155,11 @@ int main(int argc, char **argv)
             }
             if (dms.req_quick_save) {
                 dms.req_quick_save = false;
-                quick_save(&nes, prg_id, dm, mode);
+                quick_save(&nes, prg_id, dm, mode, &party);
             }
             if (dms.req_quick_load) {
                 dms.req_quick_load = false;
-                quick_load(&nes, prg_id, dm, mode);
+                quick_load(&nes, prg_id, dm, mode, &party);
                 qol_native_init(&qol);
                 if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
             }
@@ -1088,6 +1168,22 @@ int main(int argc, char **argv)
             if (!enhanced) {
                 dms.hold_walk = dms.object_snap = dms.quick_verbs = false;
                 dms.smooth_display = dms.graphics_sample = false;
+            }
+            if (dms.req_party_swap) {
+                static const unsigned actors[6] = {1, 2, 4, 5, 6, 7};
+                dms.req_party_swap = false;
+                if (enhanced && dms.kid_switching && !party.pending && !party.executing) {
+                    party_outgoing = actors[dms.party_out]; party_incoming = actors[dms.party_in];
+                    party_intent = true;
+                    if (devmenu_is_open(dm)) devmenu_toggle(dm);
+                    menu = false; drain = true;
+                    devmenu_toast(dm, "RELEASE INPUT TO SWAP");
+                }
+            }
+            if (saved_kids != dms.kid_switching) {
+                saved_kids = dms.kid_switching;
+                if (!config_save_bool(cfg, "enhancements", "kid_switching", saved_kids))
+                    devmenu_toast(dm, "TEAMMATE SETTING SAVE FAILED");
             }
             if (saved_hold != dms.hold_walk) {
                 saved_hold = dms.hold_walk;
@@ -1132,9 +1228,33 @@ int main(int argc, char **argv)
             else
                 drain = false;
         }
-        if (enhanced)
+        if (enhanced) {
+            if (nes.exec_hook == enhancement_dispatch && nes.exec_hook_ud == &dispatch) {
+                nes.exec_hook = dispatch.input_hook; nes.exec_hook_ud = dispatch.input_userdata;
+            }
+            bool neutral = !menu && !drain && !chord_active && focus_active && !(kb | gp);
+            party_update(&party, true, dms.kid_switching && !trace_path, neutral);
+            if (party_intent && neutral) {
+                party_intent = false;
+                party_result_t result = party_request(&nes, &party, party_outgoing, party_incoming);
+                party_waiting = result == PARTY_OK;
+                logf_("[PARTY] requested %s -> %s: %s", party_actor_name(party_outgoing),
+                      party_actor_name(party_incoming), party_result_name(result));
+                if (!party_waiting && dm) devmenu_toast(dm, "%s", party_result_short(result));
+            }
+            if (party_waiting && !party.pending && !party.executing) {
+                party_waiting = false; drain = true;
+                logf_("[PARTY] result: %s", party_result_name(party.result));
+                if (dm) devmenu_toast(dm, "%s", party.result == PARTY_OK ? "TEAMMATE REPLACED" : party_result_short(party.result));
+                qol_native_init(&qol);
+            }
+            if (party.pending || party.executing) game_in = 0;
             qol_native_update(&nes, &qol, (qol_options_t){dms.hold_walk, dms.object_snap, dms.quick_verbs},
-                              game_in, !menu && !drain && !trace_path && focus_active && !chord_active);
+                              game_in, !menu && !drain && !trace_path && focus_active && !chord_active &&
+                              !party.pending && !party.executing);
+            dispatch.input_hook = nes.exec_hook; dispatch.input_userdata = nes.exec_hook_ud;
+            nes.exec_hook = enhancement_dispatch; nes.exec_hook_ud = &dispatch;
+        }
         if (trace_path) {
             uint8_t tp[2];
             trace_at(&trace, (uint32_t)frame_no, tp);
@@ -1237,7 +1357,7 @@ int main(int argc, char **argv)
             SDL_Delay(presentation_wait_ms(acc, elapsed, frame_time));
         } else if (!to_run)
             SDL_Delay(1);
-        save_flush(&save, &nes, false);
+        save_flush(&save, &nes, false, &party);
     }
 
     if (v.record)
@@ -1254,7 +1374,8 @@ int main(int argc, char **argv)
         fwrite("data", 1, 4, wav); fwrite(&data, 4, 1, wav);
         fclose(wav);
     }
-    save_flush(&save, &nes, true);
+    if (enhanced && (party.pending || party.executing)) party_cancel(&nes, &party);
+    save_flush(&save, &nes, true, &party);
     if (frame_no)
         logf_("frames: %ld, core %.3f ms/frame (%.0f fps capable)", frame_no,
               1000.0 * (double)emu_ticks / (double)freq / (double)frame_no,
@@ -1262,6 +1383,7 @@ int main(int argc, char **argv)
     logf_("exit");
     if (hash_out)
         fclose(hash_out);
+    party_destroy(&party);
     trace_free(&trace);
     devmenu_free(dm);
     devmenu_free(v.qol_overlay);
