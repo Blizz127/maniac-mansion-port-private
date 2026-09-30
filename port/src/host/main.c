@@ -210,7 +210,7 @@ typedef struct {
     int32_t id[PADS_MAX];
     int n;
     pad_set_t set;
-    bool back_now, start_now;   /* Back/Start of the active pad this frame (chord input) */
+    bool back_now, start_now;   /* Back/Start OR-ed over every attached pad this frame (chord input) */
     uint32_t trace_window_ms;
     int trace_lines;
 } pads_t;
@@ -329,11 +329,16 @@ static uint8_t pads_poll(pads_t *p, uint8_t *hot)
             p->trace_lines++;
             logf_("[DEV_MENU] input instance=%d buttons=%02x l3=%d r3=%d", (int)p->id[i], b, l3, r3);
         }
+        /* The Back+Start chord is a host gesture: read it from EVERY attached pad,
+         * outside the active-pad selection and its neutral gating, so a mirrored
+         * Steam/InputPlumber copy that appears mid-press, or a pad whose first press
+         * is still being adjudicated, still opens the menu. Game input stays with
+         * the active pad only. */
+        p->back_now |= back;
+        p->start_now |= start;
         if (pads_input(&p->set, p->id[i], non_neutral)) {
             out = b;
             *hot = (uint8_t)((l3 ? 1 : 0) | (r3 ? 2 : 0));
-            p->back_now = back;
-            p->start_now = start;
         }
     }
     return out;
