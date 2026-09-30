@@ -18,6 +18,7 @@ run() {
         --window-shot "800:$d/window.png" --record-video /dev/null \
         --set video.vsync=off --set audio.enabled=off > "$d/run.log" 2>&1
 }
+if [ "${MM_MODE_TEST_SAVE_ONLY:-0}" != 1 ]; then
 run original original MM_DEV_MENU=0
 run original_stale original MM_DEV_MENU=0 MM_ENHANCEMENTS_HOLD_WALK=on MM_ENHANCEMENTS_OBJECT_SNAP=on MM_ENHANCEMENTS_QUICK_VERBS=on MM_ENHANCEMENTS_SMOOTH_DISPLAY=on MM_ENHANCEMENTS_GRAPHICS_SAMPLE=on MM_ENHANCEMENTS_KID_SWITCHING=on
 run enhanced_off enhanced MM_DEV_MENU=0
@@ -26,6 +27,7 @@ cmp "$out/original/window.png" "$out/original_stale/window.png"
 cmp "$out/original/hashes.txt" "$out/enhanced_off/hashes.txt"
 cmp "$out/original/window.png" "$out/enhanced_off/window.png"
 echo 'PASS Original ignores stale enhanced settings; Enhanced OFF matches Original (900 native hashes + window pixels)'
+fi
 # Preserve even an existing Original battery file while using Enhanced.
 d=$out/save_isolation
 mkdir -p "$d/data/maniac-mansion-port/saves"
@@ -57,7 +59,7 @@ original.parent.mkdir(parents=True,exist_ok=True)
 original.write_bytes(slots[0].read_bytes())
 PY
 save_run original '10:F12'
-grep -q 'QUICK SAVE IS FROM ANOTHER BUILD' "$d/original.log"
+grep -q 'QUICK SAVE IS FROM ANOTHER MODE/BUILD' "$d/original.log"
 save_run enhanced '10:F12'
 grep -q 'quick load done' "$d/enhanced.log"
 test "$rom_before" = "$(sha256sum "$rom" | cut -d ' ' -f 1)"

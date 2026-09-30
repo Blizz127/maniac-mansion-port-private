@@ -55,3 +55,36 @@ character-specific actions require explicit treatment and actual ROM tests.
 No party-state mutation is implemented by this design contract alone. Unsupported
 or unverified states must be refused with an understandable reason rather than
 presented as a working feature.
+
+## Verified boot-mode behavior
+
+Boot lane `11e550f` is integrated as `bbb7408`. Seven CTest checks pass,
+including default/neutral/edge chooser behavior and actual snapshot-loader
+cross-mode rejection. The production host compares Original, Original with stale
+all-ON enhanced settings, and Enhanced OFF: all 900 native framebuffer hashes and
+captured rendered-window pixels match. Startup logs confirm effective Original
+settings are all OFF.
+
+The isolated Xvfb diagnostic feeds actual XTest keyboard events and a virtual
+Xbox through the production boot chooser. Both select Enhanced after neutral,
+and confirmation is drained before core execution. Existing 100-frame native
+keyboard/controller parity remains exact. Physical handheld operation is not
+claimed by this device-pipeline test.
+
+A disposable Original battery sentinel remains byte-identical during Enhanced
+execution. Enhanced writes its own quick state; copying that state into the
+Original slot is rejected, while Enhanced loads its own state successfully.
+The owner-local ROM SHA-256 remains unchanged.
+
+An independent read-only instruction observer over 180 live native frames
+records 1,900,786 original 6502 instructions, including 1,898,146 from cartridge
+ROM and 2,640 from native RAM code. The complete 262,144-byte PRG is byte-identical
+before/after. This establishes the original retail engine path, alongside the
+previous Mesen trace comparisons; it is not a full-playthrough assertion.
+
+Reproduce host mode/isolation checks with `port/tests/test_modes.sh build/port
+OWNER_LOCAL_ROM build/local-mode-proof`. `MM_MODE_TEST_SAVE_ONLY=1` runs only the
+save checks after the frame/window comparisons have already passed. The script
+uses isolated Xvfb and disposable config/data roots. Screenshots and states stay
+under ignored build output. Native instruction evidence remains in owner-local
+scratch, not packaged game data.

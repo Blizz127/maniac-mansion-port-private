@@ -3,6 +3,10 @@
 Task 3b6b23789a0f, isolated from the published mm-r5 baseline (`edf82498`).
 The native 6502 runtime, retail ROM and battery-save format remain the reference.
 Every new enhancement defaults OFF. No release or remote publication is authorized.
+The owner addendum adds a per-boot Original/Enhanced choice; Original ignores
+all enhancement settings and uses the unchanged complete retail-ROM execution
+path. See [enhancement-modes.md](enhancement-modes.md) for boot/save isolation
+and the research contract for safe mid-game teammate replacement.
 
 ## Input design
 
