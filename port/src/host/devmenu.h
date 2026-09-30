@@ -20,6 +20,7 @@ typedef struct {
     int aspect;    /* 0 = 8:7, 1 = square */
     int crop;      /* 0 = none, 1 = 8 lines top and bottom */
     bool show_help;
+    bool enhanced_mode; /* boot mode gates every enhancement */
     bool hold_walk, object_snap, quick_verbs;
     bool smooth_display, graphics_sample; /* opt-in host presentation only */
     /* one-shot requests; the host clears them after acting */

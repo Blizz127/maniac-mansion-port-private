@@ -4,7 +4,7 @@
 
 int main(void)
 {
-    dm_state_t s = {0};
+    dm_state_t s = {.enhanced_mode = true};
     devmenu_t *m = devmenu_create(&s, NULL); assert(m);
     assert(!s.smooth_display && !s.graphics_sample);
     devmenu_toggle(m);
@@ -28,6 +28,18 @@ int main(void)
     devmenu_qol_draw(m, r, (SDL_Rect){0, 0, 256, 240}, 0, false, "", true, 120, 80);
     SDL_RenderPresent(r);
     devmenu_free(m); /* texture cleanup must precede renderer/video teardown */
+    /* Original never offers an enhancement entry, even with stale ON values. */
+    dm_state_t original = {.hold_walk = true, .object_snap = true, .quick_verbs = true,
+                           .smooth_display = true, .graphics_sample = true};
+    m = devmenu_create(&original, NULL); assert(m);
+    devmenu_toggle(m);
+    for (int i=0; i<3; ++i) devmenu_nav(m, DM_DOWN);
+    devmenu_nav(m, DM_OK); /* Options */
+    devmenu_nav(m, DM_OK); /* Original's first item is fast-forward, not Enhancements. */
+    assert(original.ff_on);
+    assert(original.hold_walk && original.object_snap && original.quick_verbs);
+    assert(original.smooth_display && original.graphics_sample);
+    devmenu_free(m);
     SDL_DestroyRenderer(r); SDL_DestroyWindow(w); SDL_Quit();
     puts("enhancements menu: PASS (default OFF, independent toggles, return OFF, navigation)");
     return 0;

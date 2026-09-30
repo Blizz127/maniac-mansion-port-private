@@ -51,6 +51,10 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
         out[n++] = (item_t){.kind = IT_PAGE, .label = "OPTIONS", .page = PG_OPTIONS};
         break;
     case PG_ENHANCEMENTS:
+        if (!s->enhanced_mode) {
+            out[n++] = (item_t){.kind = IT_NOTE, .label = "ORIGINAL ROM MODE"};
+            break;
+        }
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD A: WALK TO", .toggle = &s->hold_walk};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SNAP VISIBLE OBJECTS", .toggle = &s->object_snap};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD SELECT: QUICK VERBS", .toggle = &s->quick_verbs};
@@ -70,7 +74,8 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
         out[n++] = (item_t){.kind = IT_NOTE, .label = "NO VERIFIED CHEATS YET."};
         break;
     case PG_OPTIONS:
-        out[n++] = (item_t){.kind = IT_PAGE, .label = "ENHANCEMENTS", .page = PG_ENHANCEMENTS};
+        if (s->enhanced_mode)
+            out[n++] = (item_t){.kind = IT_PAGE, .label = "ENHANCEMENTS", .page = PG_ENHANCEMENTS};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "FAST-FORWARD", .toggle = &s->ff_on};
         out[n++] = (item_t){.kind = IT_CYCLE, .label = "FAST-FORWARD SPEED", .cycle = &s->ff_speed, .ncycle = 4,
                             .cycle_labels = ff_labels};

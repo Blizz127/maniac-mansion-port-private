@@ -12,7 +12,7 @@ run() {
     d=$out/$name
     mkdir -p "$d"
     env XDG_CONFIG_HOME="$d/config" XDG_DATA_HOME="$d/data" XDG_STATE_HOME="$d/state" SDL_AUDIODRIVER=dummy "$@" \
-        xvfb-run -a -s '-screen 0 1024x768x24' "$bin" --rom "$rom" --trace "$here/../traces/smoke.mmin" \
+        xvfb-run -a -s '-screen 0 1024x768x24' "$bin" --mode enhanced --rom "$rom" --trace "$here/../traces/smoke.mmin" \
         --frames 900 --hashes "$d/hashes.txt" --record-video /dev/null --set video.vsync=off --set audio.enabled=off \
         > "$d/run.log" 2>&1
 }
