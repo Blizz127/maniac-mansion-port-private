@@ -17,6 +17,7 @@
 #include "config.h"
 #include "presentation.h"
 #include "qol_input.h"
+#include "mode.h"
 #include "devmenu.h"
 #include "pads.h"
 #include "chord.h"
@@ -153,12 +154,16 @@ typedef struct {
     uint32_t last_write_ms;
 } save_t;
 
-static void save_open(save_t *s, nes_t *nes)
+static bool save_open(save_t *s, nes_t *nes, mm_mode_t mode)
 {
-    char dir[1100];
-    snprintf(dir, sizeof dir, "%s/saves", path_data_dir());
+    char dir[1100], quick[1100];
+    if (!mode_save_paths(path_data_dir(), mode, s->path, sizeof s->path, quick, sizeof quick)) {
+        logline("error: save path too long");
+        return false;
+    }
+    snprintf(dir, sizeof dir, "%s", s->path);
+    *strrchr(dir, '/') = 0;
     path_mkdirs(dir);
-    snprintf(s->path, sizeof s->path, "%s/maniac-mansion-usa.sav", dir);
     FILE *f = fopen(s->path, "rb");
     if (f) {
         size_t n = fread(nes->prgram, 1, sizeof nes->prgram, f);
@@ -168,6 +173,7 @@ static void save_open(save_t *s, nes_t *nes)
         logf_("battery save: none yet (%s)", s->path);
     }
     memcpy(s->last, nes->prgram, sizeof s->last);
+    return true;
 }
 
 static void save_flush(save_t *s, nes_t *nes, bool force)
@@ -346,6 +352,21 @@ static uint8_t pads_poll(pads_t *p, uint8_t *hot)
     return out;
 }
 
+static uint8_t boot_pad_poll(void *userdata)
+{
+    uint8_t hot;
+    return pads_poll(userdata, &hot);
+}
+
+static void boot_device_event(void *userdata, const SDL_Event *event)
+{
+    pads_t *pads = userdata;
+    if (event->type == SDL_CONTROLLERDEVICEADDED || event->type == SDL_JOYDEVICEADDED)
+        pads_open(pads, event->type == SDL_CONTROLLERDEVICEADDED ? event->cdevice.which : event->jdevice.which);
+    else if (event->type == SDL_CONTROLLERDEVICEREMOVED || event->type == SDL_JOYDEVICEREMOVED)
+        pads_close(pads, event->type == SDL_CONTROLLERDEVICEREMOVED ? event->cdevice.which : event->jdevice.which);
+}
+
 /* ---------------------------------------------------------------- video */
 
 typedef struct {
@@ -475,36 +496,40 @@ static void take_screenshot(const uint16_t *fb, devmenu_t *dm)
         devmenu_toast(dm, ok ? "SCREENSHOT SAVED" : "SCREENSHOT FAILED");
 }
 
-static const char *quick_slot(void)
+static const char *quick_slot(mm_mode_t mode)
 {
     static char p[1100];
-    char dir[1100];
-    snprintf(dir, sizeof dir, "%s/quicksave", path_data_dir());
+    char dir[1100], battery[1100];
+    if (!mode_save_paths(path_data_dir(), mode, battery, sizeof battery, p, sizeof p)) {
+        p[0] = 0;
+        return p;
+    }
+    snprintf(dir, sizeof dir, "%s", p);
+    *strrchr(dir, '/') = 0;
     path_mkdirs(dir);
-    snprintf(p, sizeof p, "%s/slot1.mmst", dir);
     return p;
 }
 
 /* Quick save/load are whole-machine snapshots in a host-side slot; the
  * game's own battery save is untouched. */
-static void quick_save(nes_t *nes, const uint8_t id[8], devmenu_t *dm)
+static void quick_save(nes_t *nes, const uint8_t id[8], devmenu_t *dm, mm_mode_t mode)
 {
     static uint8_t buf[sizeof(nes_t) + 64];
     nes_state_save(nes, buf, id);
-    bool ok = write_atomic(quick_slot(), buf, nes_state_size());
-    logf_("[DEV_MENU] quick save %s: %s", ok ? "done" : "FAILED", quick_slot());
+    bool ok = write_atomic(quick_slot(mode), buf, nes_state_size());
+    logf_("[DEV_MENU] quick save %s: %s", ok ? "done" : "FAILED", quick_slot(mode));
     if (dm)
         devmenu_toast(dm, ok ? "QUICK SAVE DONE" : "QUICK SAVE FAILED");
 }
 
-static void quick_load(nes_t *nes, const uint8_t id[8], devmenu_t *dm)
+static void quick_load(nes_t *nes, const uint8_t id[8], devmenu_t *dm, mm_mode_t mode)
 {
     static uint8_t buf[sizeof(nes_t) + 64];
-    FILE *f = fopen(quick_slot(), "rb");
+    FILE *f = fopen(quick_slot(mode), "rb");
     size_t n = f ? fread(buf, 1, sizeof buf, f) : 0;
     if (f)
         fclose(f);
-    const char *why = !f ? "NO QUICK SAVE YET" : nes_state_load(nes, buf, n, id) ? NULL : "QUICK SAVE IS FROM ANOTHER BUILD";
+    const char *why = !f ? "NO QUICK SAVE YET" : nes_state_load(nes, buf, n, id) ? NULL : "QUICK SAVE IS FROM ANOTHER MODE/BUILD";
     logf_("[DEV_MENU] quick load %s", why ? why : "done");
     if (dm)
         devmenu_toast(dm, "%s", why ? why : "QUICK LOAD DONE");
@@ -542,7 +567,7 @@ static int parse_devkeys(devkey_t *out, int max)
 static void usage(void)
 {
     printf("maniac-mansion-port %s\n"
-           "usage: maniac-mansion-port [--rom FILE] [--config FILE] [--set section.key=value]... [--check-rom]\n"
+           "usage: maniac-mansion-port [--rom FILE] [--mode original|enhanced] [--config FILE] [--set section.key=value]... [--check-rom]\n"
            "\n"
            "Runs your own Maniac Mansion (USA) NES ROM (checked by SHA-256). The ROM is\n"
            "looked for in: --rom, $MM_ROM, [game] rom in config.ini, the last ROM used,\n"
@@ -569,10 +594,18 @@ int main(int argc, char **argv)
     const char *rec_video = NULL, *rec_audio = NULL, *captions_path = NULL;
     int nwshots = 0;
     bool check_only = false;
+    mm_mode_t mode = MM_MODE_ORIGINAL;
+    bool mode_explicit = false;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--rom") && i + 1 < argc)
             cli_rom = argv[++i];
-        else if (!strcmp(argv[i], "--config") && i + 1 < argc)
+        else if (!strcmp(argv[i], "--mode") && i + 1 < argc) {
+            if (!mode_parse(argv[++i], &mode)) {
+                fprintf(stderr, "error: --mode requires original or enhanced\n");
+                return 2;
+            }
+            mode_explicit = true;
+        } else if (!strcmp(argv[i], "--config") && i + 1 < argc)
             cfg_path = argv[++i];
         else if (!strcmp(argv[i], "--set") && i + 1 < argc)
             i++; /* applied after the config file is loaded */
@@ -738,6 +771,28 @@ int main(int argc, char **argv)
         }
         SDL_SetWindowTitle(v.win, "Maniac Mansion");
     }
+    keymap_t km;
+    keymap_load(&km, cfg);
+    pads_t pads = {0};
+    pads_init(&pads.set, logline);
+    for (int i = 0; i < SDL_NumJoysticks(); i++) pads_open(&pads, i);
+    /* Batch/harness and dummy-driver runs must never wait for foreground
+     * input. Neither mode nor its last selection is persisted. */
+    bool harness = max_frames >= 0 || trace_path || hash_path || rec_video || rec_audio ||
+                   shot_path || nwshots || getenv("MM_DEV_KEYS") ||
+                   (SDL_GetCurrentVideoDriver() && (!strcmp(SDL_GetCurrentVideoDriver(), "dummy") ||
+                                                   !strcmp(SDL_GetCurrentVideoDriver(), "offscreen")));
+    if (!mode_explicit && !harness &&
+        !mode_choose(v.ren, km.key, boot_pad_poll, boot_device_event, &pads, &mode)) {
+        for (int i = pads.n - 1; i >= 0; i--) pads_close(&pads, pads.id[i]);
+        cart_free(&cart);
+        config_free(cfg);
+        SDL_Quit();
+        return 0; /* No core power or save open when the chooser is closed. */
+    }
+    bool enhanced = mode == MM_MODE_ENHANCED;
+    logf_("[MODE] %s; runtime=full retail 6502 NES emulation; cartridge bytes unchanged; enhancement hooks %s",
+          mode_name(mode), enhanced ? "opt-in" : "OFF");
     remember_rom(used);
     logf_("rom: %s (sha256 %s) verified: Maniac Mansion (USA)", used, cart.sha256);
 
@@ -746,8 +801,8 @@ int main(int argc, char **argv)
     nes_audio_config(&nes, rate);
     nes_init(&nes, cart.prg, cart.prg_size);
     nes_power(&nes, 0x00);
-    save_t save;
-    save_open(&save, &nes);
+    save_t save = {0};
+    if (!save_open(&save, &nes, mode)) return 1;
 
     /* audio */
     bool audio_on = config_bool(cfg, "audio", "enabled", true);
@@ -767,13 +822,6 @@ int main(int argc, char **argv)
     }
     const double base_cps = 1789773.0 / rate;
     const uint32_t target_queue = (uint32_t)(rate / 60 * 3) * 2; /* ~3 frames, bytes */
-
-    keymap_t km;
-    keymap_load(&km, cfg);
-    pads_t pads = {0};
-    pads_init(&pads.set, logline);
-    for (int i = 0; i < SDL_NumJoysticks(); i++)
-        pads_open(&pads, i);
 
     trace_t trace = {0};
     if (trace_path && !trace_load(&trace, trace_path, err, sizeof err)) {
@@ -797,9 +845,10 @@ int main(int argc, char **argv)
     bool dev_on = !(cheats_env && !strcmp(cheats_env, "0")) &&
                   (dev_env ? strcmp(dev_env, "0") != 0 : config_bool(cfg, "dev", "dev_menu", true));
     dm_state_t dms = {0};
-    dms.hold_walk = config_bool(cfg, "enhancements", "hold_walk", false);
-    dms.object_snap = config_bool(cfg, "enhancements", "object_snap", false);
-    dms.quick_verbs = config_bool(cfg, "enhancements", "quick_verbs", false);
+    dms.enhanced_mode = enhanced;
+    dms.hold_walk = enhanced && config_bool(cfg, "enhancements", "hold_walk", false);
+    dms.object_snap = enhanced && config_bool(cfg, "enhancements", "object_snap", false);
+    dms.quick_verbs = enhanced && config_bool(cfg, "enhancements", "quick_verbs", false);
     bool saved_hold = dms.hold_walk, saved_snap = dms.object_snap, saved_verbs = dms.quick_verbs;
     qol_native_t qol;
     qol_native_init(&qol);
@@ -807,8 +856,10 @@ int main(int argc, char **argv)
     v.qol_overlay = devmenu_create(&dms, NULL);
     bool focus_active = true;
     int32_t qol_pad_owner = pads.set.active;
-    dms.smooth_display = config_bool(cfg, "enhancements", "smooth_display", false);
-    dms.graphics_sample = config_bool(cfg, "enhancements", "graphics_sample", false);
+    dms.smooth_display = enhanced && config_bool(cfg, "enhancements", "smooth_display", false);
+    dms.graphics_sample = enhanced && config_bool(cfg, "enhancements", "graphics_sample", false);
+    logf_("[MODE] effective enhancements hold_walk=%d object_snap=%d quick_verbs=%d smooth_display=%d graphics_sample=%d",
+          dms.hold_walk, dms.object_snap, dms.quick_verbs, dms.smooth_display, dms.graphics_sample);
     bool saved_smooth = dms.smooth_display, saved_graphics = dms.graphics_sample;
     v.graphics_sample = dms.graphics_sample;
     dms.ff_speed = 1;
@@ -822,6 +873,7 @@ int main(int argc, char **argv)
         sscanf(cart.prg_sha256 + i * 2, "%2x", &b);
         prg_id[i] = (uint8_t)b;
     }
+    mode_snapshot_id(prg_id, mode, prg_id);
     devkey_t devkeys[64];
     int ndevkeys = dev_on ? parse_devkeys(devkeys, 64) : 0, devkey_i = 0;
     /* recordings: exact game time, one video frame per presented frame */
@@ -1023,13 +1075,19 @@ int main(int argc, char **argv)
             }
             if (dms.req_quick_save) {
                 dms.req_quick_save = false;
-                quick_save(&nes, prg_id, dm);
+                quick_save(&nes, prg_id, dm, mode);
             }
             if (dms.req_quick_load) {
                 dms.req_quick_load = false;
-                quick_load(&nes, prg_id, dm);
+                quick_load(&nes, prg_id, dm, mode);
                 qol_native_init(&qol);
                 if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
+            }
+            /* Original mode never enables/persists enhancement choices,
+             * even if an older menu or scripted input requests a toggle. */
+            if (!enhanced) {
+                dms.hold_walk = dms.object_snap = dms.quick_verbs = false;
+                dms.smooth_display = dms.graphics_sample = false;
             }
             if (saved_hold != dms.hold_walk) {
                 saved_hold = dms.hold_walk;
@@ -1074,8 +1132,9 @@ int main(int argc, char **argv)
             else
                 drain = false;
         }
-        qol_native_update(&nes, &qol, (qol_options_t){dms.hold_walk, dms.object_snap, dms.quick_verbs},
-                          game_in, !menu && !drain && !trace_path && focus_active && !chord_active);
+        if (enhanced)
+            qol_native_update(&nes, &qol, (qol_options_t){dms.hold_walk, dms.object_snap, dms.quick_verbs},
+                              game_in, !menu && !drain && !trace_path && focus_active && !chord_active);
         if (trace_path) {
             uint8_t tp[2];
             trace_at(&trace, (uint32_t)frame_no, tp);
