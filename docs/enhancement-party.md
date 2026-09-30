@@ -49,7 +49,8 @@ when the team-change option is OFF, so new-game provenance can be observed.
 Original mode must not bind this observer. `party_request` queues a reviewed
 change; `pending || executing` disables saves/loads until stable.
 
-Transactions begin at the verified fixed-bank main-loop boundary. Each native
+For the tested idle-road transactions, operations begin at the guarded fixed-bank
+main-loop boundary. This is not a general mutation or warp boundary. Each native
 handler runs through an asynchronous PC/stack call under ordinary
 `nes_run_frame`; there is no nested CPU run loop, timer multiplier or fabricated
 frame. NMIs, script delays, music and PPU/APU clocks continue normally. Only
@@ -131,3 +132,43 @@ or character-specific puzzle route from these tests.
 Optional diagnostics: `test-party-saveload ROM ROAD_DAVE_SYD_WENDY_STATE` and
 `test-party-death ROM ROAD_DAVE_SYD_WENDY_STATE`. The latter explicitly labels its
 controlled native script call. ROM/state fixtures remain owner-local.
+
+## Read-only decomp handoff 4ffa6f6743bd
+
+The owner relayed this historical evidence after implementation. Its observed
+integrator checkpoint is `1637237`; it is not a competing lead or a new lane.
+The public `docs/scumm_state.md` at `b0da26f` remains the source of its traced
+address roles. The public checkout was read only and remains unchanged.
+
+The handoff distinguishes identity from rendering: selected actor is native
+variable 0 (`$6100/$6000`); persistent room/x/y tables start at `$6B5D`, `$6B91`,
+`$6B77`; `$6D22` maps identities to four active slots and `$6D1A` is the inverse.
+Active x/y/walk arrays start at `$6CBE/$6CC2/$6CCE`. Inventory owner is the low
+nibble at `$660A+object_id`; 60-entry ID/resource arrays start at `$6260`,
+`$629C/$62D8` and `$6A22`. Allocation policy is separate from table capacity;
+the constrained implementation reserves slot zero and checks slots 1 through 59.
+These addresses establish observed roles, not permission to mutate them.
+
+`$6314=$FF` and observed waits at `$C126/$C12B` do not establish a safe mutation
+boundary. The implemented transaction does not inject at those waits. It uses
+`$C049` only after the roadside/provenance checks and no active VM slot, nested
+caller, room/queue operation or pending graphics transfer, with stack/call
+context checks. Native handlers perform actor detach/place, roster assignment
+and original pickup semantics; it never treats an identity as a render index.
+Do not generalize this tested boundary to warps or arbitrary party edits.
+
+At the public checkpoint, capture/death/party/progression variables were not
+yet identified. Later scoped investigations and actual-ROM evidence establish
+the specific roster, constructor, capture/death and save-history guards used
+here, not every puzzle/progression variable. Unsupported states remain refused.
+Later logs record 263 native replacement checks, 1,502 fresh-RESET provenance
+checks, 17 native Save/Load checks and 15 controlled native death checks with
+zero failures. Controlled death is not a natural gameplay death route, and
+late character-specific puzzles/endings remain unverified. Native Load/Continue
+still invalidates replacement trust.
+
+No new mutation was inferred or implemented from this handoff. Existing kid
+identity, inventory ownership, abilities, puzzle/script state, capture/death
+and Dave constraints remain as documented above. Subsequent restoration work
+is still partial; selected artwork and remaining dialogue require the evidence
+listed in [enhancement-beta-content.md](enhancement-beta-content.md).

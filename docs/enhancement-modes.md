@@ -134,3 +134,25 @@ and unchanged owner ROM. With stale ON config for all eight settings, Original
 still matches Original OFF and Enhanced OFF for 900 native hashes and captured
 window pixels. Original battery isolation checks also pass. These are targeted
 checks, not proof of a full restored game or every ending.
+
+## Executed boot gate versus the historical handoff
+
+Read-only decomp handoff `4ffa6f6743bd` describes checkpoint `1637237`, when the
+script existed without reported execution evidence. Later execution logs are
+available in ignored `build/enh-validation/` and were inspected again when the
+handoff arrived; the checks were not rerun merely to replay completed work.
+
+| Gate | Actual recorded execution | Scope |
+| --- | --- | --- |
+| Mode/frame/window equality | `addendum-modes.log` and later `restoration-modes.log`: PASS for 900 native hashes and rendered window pixels | Original OFF, Original stale ON and Enhanced OFF; the later run includes all eight stale ON settings. |
+| Save isolation | Both mode logs: PASS | Original battery sentinel unchanged, Enhanced state copied into Original rejected, Enhanced own-state load succeeds, owner ROM unchanged. |
+| Boot chooser devices | `addendum-device-parity.log`: PASS | Actual XTest keyboard and isolated virtual Xbox choose Enhanced; no core frames execute before selection; subsequent 100 native-frame device parity checks pass. |
+| Restoration quick profiles | `restoration-host.log`: PASS | Actual menu persistence/next-launch activation, separate profile slots, own-profile load, wrong-profile copied-state rejection and Original ignoring ON. |
+
+The associated runtime candidate is `1e77a57`; this handoff reconciliation
+changes documentation only. The independent verification ledgers retain their
+actual tested commit identities. No physical handheld test or natural ending
+is inferred from these logs. The five-group restoration addendum remains
+partial with a source/verification blocker, regardless of the earlier ledger's
+completed candidate status; no new dispatch, competing lane or completion
+claim is created by this evidence handoff.
