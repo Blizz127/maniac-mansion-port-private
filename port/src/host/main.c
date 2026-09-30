@@ -15,6 +15,8 @@
 #include "../core/nes.h"
 #include "../core/trace.h"
 #include "config.h"
+#include "presentation.h"
+#include "qol_input.h"
 #include "devmenu.h"
 #include "pads.h"
 #include "chord.h"
@@ -353,6 +355,9 @@ typedef struct {
     SDL_Texture *scaled; /* integer prescale, then linear to the window */
     int prescale;
     bool par87;
+    bool graphics_sample;
+    qol_native_t *qol;
+    devmenu_t *qol_overlay;
     int crop; /* lines hidden at top and bottom */
     char window_shot[1024]; /* pending capture of the next presented frame */
     FILE *record;           /* --record-video: raw RGB24 of every presented frame */
@@ -377,7 +382,8 @@ static void video_present(video_t *v, const uint16_t *fb, devmenu_t *dm)
             uint32_t *row = (uint32_t *)((uint8_t *)pixels + y * pitch);
             const uint16_t *src = fb + y * NES_W;
             for (int x = 0; x < NES_W; x++)
-                row[x] = v->lut[src[x] & 0x1FF];
+                row[x] = v->graphics_sample ? presentation_pixel(v->lut[src[x] & 0x1FF], true, y)
+                                          : v->lut[src[x] & 0x1FF];
         }
         SDL_UnlockTexture(v->frame);
     }
@@ -414,6 +420,10 @@ static void video_present(video_t *v, const uint16_t *fb, devmenu_t *dm)
     } else {
         SDL_RenderCopy(v->ren, v->frame, &src, &dst);
     }
+    if (v->qol && v->qol_overlay)
+        devmenu_qol_draw(v->qol_overlay, v->ren, dst, v->crop,
+                         v->qol->policy.chooser, qol_verb_name((qol_verb_t)v->qol->policy.verb_index),
+                         v->qol->highlight, v->qol->selected.x, v->qol->selected.y);
     if (dm)
         devmenu_draw(dm, v->ren, dst); /* host overlay on the presented copy */
     if (dm && (v->caption_top || v->caption_bottom)) { /* recordings: in the letterbox bars */
@@ -787,6 +797,20 @@ int main(int argc, char **argv)
     bool dev_on = !(cheats_env && !strcmp(cheats_env, "0")) &&
                   (dev_env ? strcmp(dev_env, "0") != 0 : config_bool(cfg, "dev", "dev_menu", true));
     dm_state_t dms = {0};
+    dms.hold_walk = config_bool(cfg, "enhancements", "hold_walk", false);
+    dms.object_snap = config_bool(cfg, "enhancements", "object_snap", false);
+    dms.quick_verbs = config_bool(cfg, "enhancements", "quick_verbs", false);
+    bool saved_hold = dms.hold_walk, saved_snap = dms.object_snap, saved_verbs = dms.quick_verbs;
+    qol_native_t qol;
+    qol_native_init(&qol);
+    v.qol = &qol;
+    v.qol_overlay = devmenu_create(&dms, NULL);
+    bool focus_active = true;
+    int32_t qol_pad_owner = pads.set.active;
+    dms.smooth_display = config_bool(cfg, "enhancements", "smooth_display", false);
+    dms.graphics_sample = config_bool(cfg, "enhancements", "graphics_sample", false);
+    bool saved_smooth = dms.smooth_display, saved_graphics = dms.graphics_sample;
+    v.graphics_sample = dms.graphics_sample;
     dms.ff_speed = 1;
     dms.aspect = v.par87 ? 0 : 1;
     dms.crop = v.crop ? 1 : 0;
@@ -843,6 +867,9 @@ int main(int argc, char **argv)
     bool drain = false;          /* after the menu closes: wait for neutral */
     chord_t chord;               /* Back+Start gesture (chord.h); swallows both while a chord is possible */
     chord_init(&chord);
+    chord_timed_t enhanced_chord;
+    chord_timed_init(&enhanced_chord);
+    bool timed_chord_on = false;
     bool chord_active = false;   /* menu toggled by this gesture: pad nav waits for release */
     uint8_t prev_nav = 0;        /* pad nav edges: 1 up 2 down 4 ok 8 back */
 
@@ -852,6 +879,16 @@ int main(int argc, char **argv)
         while (SDL_PollEvent(&e)) {
             switch (e.type) {
             case SDL_QUIT: running = false; break;
+            case SDL_WINDOWEVENT:
+                if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                    focus_active = false;
+                    if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
+                }
+                else if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                    focus_active = true;
+                    if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
+                }
+                break;
             case SDL_CONTROLLERDEVICEADDED: pads_open(&pads, e.cdevice.which); break;
             case SDL_CONTROLLERDEVICEREMOVED: pads_close(&pads, e.cdevice.which); break;
             case SDL_JOYDEVICEADDED: /* pads without a mapping: raw fallback (mapped ones arrive above too; dedup'd by id) */
@@ -923,6 +960,13 @@ int main(int argc, char **argv)
         if ((kb & (PAD_LEFT | PAD_RIGHT)) == (PAD_LEFT | PAD_RIGHT)) kb &= ~(PAD_LEFT | PAD_RIGHT);
         uint8_t hot;
         uint8_t gp = pads_poll(&pads, &hot);
+        if (qol_pad_owner != pads.set.active) {
+            if (qol_pad_owner >= 0 && (dms.hold_walk || dms.object_snap || dms.quick_verbs)) {
+                qol_native_init(&qol);
+                drain = true;
+            }
+            qol_pad_owner = pads.set.active;
+        }
         menu = dm && devmenu_is_open(dm);
 
         if (dm) {
@@ -930,7 +974,17 @@ int main(int argc, char **argv)
              * opt-in on, both are held back from the game for a short grace
              * window so the combo never also reaches the game. */
             bool fire = false;
-            uint8_t pass = chord_step(&chord, pads.back_now, pads.start_now, PAD_SELECT, PAD_START, &fire);
+            bool use_timed = dms.hold_walk || dms.object_snap || dms.quick_verbs ||
+                             dms.smooth_display || dms.graphics_sample;
+            if (use_timed != timed_chord_on) {
+                chord_init(&chord); chord_timed_init(&enhanced_chord);
+                chord.fired = enhanced_chord.fired = pads.back_now || pads.start_now;
+                timed_chord_on = use_timed;
+            }
+            uint8_t pass = use_timed
+                ? chord_timed_step(&enhanced_chord, pads.back_now, pads.start_now, PAD_SELECT, PAD_START,
+                                   (uint64_t)((double)SDL_GetPerformanceCounter() * 1000.0 / (double)freq), &fire)
+                : chord_step(&chord, pads.back_now, pads.start_now, PAD_SELECT, PAD_START, &fire);
             if (fire) {
                 bool was = devmenu_is_open(dm);
                 devmenu_toggle(dm);
@@ -974,7 +1028,35 @@ int main(int argc, char **argv)
             if (dms.req_quick_load) {
                 dms.req_quick_load = false;
                 quick_load(&nes, prg_id, dm);
+                qol_native_init(&qol);
+                if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
             }
+            if (saved_hold != dms.hold_walk) {
+                saved_hold = dms.hold_walk;
+                if (!config_save_bool(cfg, "enhancements", "hold_walk", saved_hold))
+                    devmenu_toast(dm, "WALK SETTING SAVE FAILED");
+            }
+            if (saved_snap != dms.object_snap) {
+                saved_snap = dms.object_snap;
+                if (!config_save_bool(cfg, "enhancements", "object_snap", saved_snap))
+                    devmenu_toast(dm, "SNAP SETTING SAVE FAILED");
+            }
+            if (saved_verbs != dms.quick_verbs) {
+                saved_verbs = dms.quick_verbs;
+                if (!config_save_bool(cfg, "enhancements", "quick_verbs", saved_verbs))
+                    devmenu_toast(dm, "VERB SETTING SAVE FAILED");
+            }
+            if (saved_smooth != dms.smooth_display) {
+                saved_smooth = dms.smooth_display;
+                if (!config_save_bool(cfg, "enhancements", "smooth_display", saved_smooth))
+                    devmenu_toast(dm, "DISPLAY SETTING SAVE FAILED");
+            }
+            if (saved_graphics != dms.graphics_sample) {
+                saved_graphics = dms.graphics_sample;
+                if (!config_save_bool(cfg, "enhancements", "graphics_sample", saved_graphics))
+                    devmenu_toast(dm, "GRAPHICS SETTING SAVE FAILED");
+            }
+            v.graphics_sample = dms.graphics_sample;
             v.par87 = dms.aspect == 0;
             v.crop = dms.crop ? 8 : 0;
         }
@@ -992,6 +1074,8 @@ int main(int argc, char **argv)
             else
                 drain = false;
         }
+        qol_native_update(&nes, &qol, (qol_options_t){dms.hold_walk, dms.object_snap, dms.quick_verbs},
+                          game_in, !menu && !drain && !trace_path && focus_active && !chord_active);
         if (trace_path) {
             uint8_t tp[2];
             trace_at(&trace, (uint32_t)frame_no, tp);
@@ -1089,7 +1173,10 @@ int main(int argc, char **argv)
         v.game_frame = frame_no;
         if (to_run)
             video_present(&v, nes.ppu.fb, dm);
-        else
+        if (dms.smooth_display && !recording && !ff) {
+            double elapsed = (double)(SDL_GetPerformanceCounter() - last) / (double)freq;
+            SDL_Delay(presentation_wait_ms(acc, elapsed, frame_time));
+        } else if (!to_run)
             SDL_Delay(1);
         save_flush(&save, &nes, false);
     }
@@ -1118,6 +1205,7 @@ int main(int argc, char **argv)
         fclose(hash_out);
     trace_free(&trace);
     devmenu_free(dm);
+    devmenu_free(v.qol_overlay);
     if (adev)
         SDL_CloseAudioDevice(adev);
     SDL_Quit();

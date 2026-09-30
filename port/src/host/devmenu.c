@@ -13,7 +13,7 @@ static const char *aspect_labels[2] = {"8:7", "SQUARE"};
 static const char *crop_labels[2] = {"NONE", "8 LINES"};
 
 typedef enum { IT_PAGE, IT_TOGGLE, IT_CYCLE, IT_ACTION, IT_NOTE } item_kind_t;
-typedef enum { PG_ROOT, PG_WARP, PG_FINISH, PG_CHEATS, PG_OPTIONS, PG_COUNT } page_t;
+typedef enum { PG_ROOT, PG_WARP, PG_FINISH, PG_CHEATS, PG_OPTIONS, PG_ENHANCEMENTS, PG_COUNT } page_t;
 
 typedef struct {
     item_kind_t kind;
@@ -37,7 +37,7 @@ struct devmenu {
     SDL_Renderer *font_owner;
 };
 
-static const char *page_title[PG_COUNT] = {"DEV MENU", "WARP", "FINISH AREA", "CHEATS", "OPTIONS"};
+static const char *page_title[PG_COUNT] = {"DEV MENU", "WARP", "FINISH AREA", "CHEATS", "OPTIONS", "ENHANCEMENTS"};
 
 static int page_items(devmenu_t *m, page_t p, item_t *out)
 {
@@ -50,6 +50,13 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
         out[n++] = (item_t){.kind = IT_PAGE, .label = "CHEATS", .page = PG_CHEATS};
         out[n++] = (item_t){.kind = IT_PAGE, .label = "OPTIONS", .page = PG_OPTIONS};
         break;
+    case PG_ENHANCEMENTS:
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD A: WALK TO", .toggle = &s->hold_walk};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SNAP VISIBLE OBJECTS", .toggle = &s->object_snap};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD SELECT: QUICK VERBS", .toggle = &s->quick_verbs};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "DISPLAY DEADLINE PACING", .toggle = &s->smooth_display};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SCENE COLOR SAMPLE", .toggle = &s->graphics_sample};
+        break;
     case PG_WARP:
         out[n++] = (item_t){.kind = IT_NOTE, .label = "NO VERIFIED WARP SPOTS YET."};
         break;
@@ -60,6 +67,7 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
         out[n++] = (item_t){.kind = IT_NOTE, .label = "NO VERIFIED CHEATS YET."};
         break;
     case PG_OPTIONS:
+        out[n++] = (item_t){.kind = IT_PAGE, .label = "ENHANCEMENTS", .page = PG_ENHANCEMENTS};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "FAST-FORWARD", .toggle = &s->ff_on};
         out[n++] = (item_t){.kind = IT_CYCLE, .label = "FAST-FORWARD SPEED", .cycle = &s->ff_speed, .ncycle = 4,
                             .cycle_labels = ff_labels};
@@ -299,4 +307,32 @@ void devmenu_caption(devmenu_t *m, SDL_Renderer *r, SDL_Rect area, int sc, const
     ensure_font(m, r);
     int w = (int)strlen(s) * 8 * sc;
     text(m, r, area.x + (area.w - w) / 2, area.y + (area.h - 8 * sc) / 2, sc, 0xE8E8F0, s);
+}
+
+void devmenu_qol_draw(devmenu_t *m, SDL_Renderer *r, SDL_Rect g, int crop,
+                      bool chooser, const char *verb, bool highlight, int x, int y)
+{
+    if (!m || (!chooser && !highlight)) return;
+    if (highlight && !chooser && y >= crop && y < 175) {
+        int px = g.x + x * g.w / 256;
+        int py = g.y + (y - crop) * g.h / (240 - 2 * crop);
+        int radius = g.h / (240 - 2 * crop) * 5;
+        if (radius < 4) radius = 4;
+        SDL_Rect clip = {g.x, g.y, g.w, (175 - crop) * g.h / (240 - 2 * crop)};
+        SDL_RenderSetClipRect(r, &clip);
+        SDL_SetRenderDrawColor(r, 255, 220, 80, 255);
+        SDL_Rect marker = {px - radius, py - radius, radius * 2 + 1, radius * 2 + 1};
+        SDL_RenderDrawRect(r, &marker);
+        SDL_RenderSetClipRect(r, NULL);
+    }
+    if (chooser) {
+        ensure_font(m, r);
+        int sc = g.h / 240; if (sc < 1) sc = 1;
+        SDL_Rect box = {g.x + 8 * sc, g.y + 40 * sc, g.w - 16 * sc, 60 * sc};
+        panel(r, box);
+        text(m, r, box.x + 6 * sc, box.y + 5 * sc, sc, 0xFFD050, "QUICK VERBS");
+        text(m, r, box.x + 6 * sc, box.y + 20 * sc, sc, 0xFFFFFF, verb);
+        text(m, r, box.x + 6 * sc, box.y + 35 * sc, sc, 0xC8C8D8, "D-PAD/ARROWS: CHOOSE");
+        text(m, r, box.x + 6 * sc, box.y + 45 * sc, sc, 0xC8C8D8, "A/X: OK   B/Z: CANCEL");
+    }
 }

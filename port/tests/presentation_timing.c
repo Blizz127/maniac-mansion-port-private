@@ -1,6 +1,6 @@
 /* Standalone local evidence: SDL timer waits and simulated display clocks.
  * Does not open a window, access saves, or claim physical-display validation.
- * usage: presentation-timing ROM TRACE */
+ * usage: presentation-timing ROM TRACE [NATIVE_FRAMES] */
 #include <SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +12,6 @@
 #include "../src/core/trace.h"
 #include "../src/host/presentation.h"
 
-#define NATIVE_FRAMES 300
 #define WAIT_FRAMES 120
 
 static const double native_frame = 1.0 / (1789772.7272 * 3.0 / (341.0 * 262.0 - 0.5));
@@ -60,7 +59,7 @@ static uint64_t hash_bytes(const void *data, size_t size)
 }
 
 static bool state_schedule(const cart_t *cart, const char *trace_path, unsigned host_hz,
-                           uint64_t states[NATIVE_FRAMES], uint64_t audio[NATIVE_FRAMES],
+                           uint64_t *states, uint64_t *audio, unsigned native_frames,
                            unsigned char *final, bool reference)
 {
     trace_t trace = {0};
@@ -80,10 +79,10 @@ static bool state_schedule(const cart_t *cart, const char *trace_path, unsigned 
         id[i] = (uint8_t)strtoul((char[3]){cart->prg_sha256[2 * i], cart->prg_sha256[2 * i + 1], 0}, NULL, 16);
     unsigned frame = 0, host_ticks = 0, differences = 0;
     double accumulator = 0;
-    while (frame < NATIVE_FRAMES) {
+    while (frame < native_frames) {
         host_ticks++;
         accumulator += 1.0 / host_hz;
-        while (accumulator >= native_frame && frame < NATIVE_FRAMES) {
+        while (accumulator >= native_frame && frame < native_frames) {
             accumulator -= native_frame;
             uint8_t pads[2];
             trace_at(&trace, frame, pads);
@@ -114,7 +113,13 @@ static bool state_schedule(const cart_t *cart, const char *trace_path, unsigned 
 
 int main(int argc, char **argv)
 {
-    if (argc != 3) { fprintf(stderr, "usage: presentation-timing ROM TRACE\n"); return 2; }
+    if (argc < 3 || argc > 4) { fprintf(stderr, "usage: presentation-timing ROM TRACE [NATIVE_FRAMES]\n"); return 2; }
+    unsigned native_frames = 300;
+    if (argc == 4) {
+        char *end; unsigned long count = strtoul(argv[3], &end, 10);
+        if (*end || count < 1 || count > 20000) return 2;
+        native_frames = (unsigned)count;
+    }
     if (SDL_Init(SDL_INIT_TIMER)) { fprintf(stderr, "%s\n", SDL_GetError()); return 1; }
     wait_benchmark(false);
     wait_benchmark(true);
@@ -122,12 +127,14 @@ int main(int argc, char **argv)
     cart_t cart = {0};
     char err[512];
     if (!cart_load(&cart, argv[1], false, err, sizeof err)) { fprintf(stderr, "%s\n", err); return 1; }
-    uint64_t states[NATIVE_FRAMES], audio[NATIVE_FRAMES];
+    uint64_t *states = malloc(native_frames * sizeof *states);
+    uint64_t *audio = malloc(native_frames * sizeof *audio);
     unsigned char *final = malloc(nes_state_size());
-    if (!final) return 1;
-    bool ok = state_schedule(&cart, argv[2], 60, states, audio, final, true) &&
-              state_schedule(&cart, argv[2], 120, states, audio, final, false) &&
-              state_schedule(&cart, argv[2], 144, states, audio, final, false);
+    if (!final || !states || !audio) return 1;
+    bool ok = state_schedule(&cart, argv[2], 60, states, audio, native_frames, final, true) &&
+              state_schedule(&cart, argv[2], 120, states, audio, native_frames, final, false) &&
+              state_schedule(&cart, argv[2], 144, states, audio, native_frames, final, false);
+    free(states); free(audio);
     free(final);
     cart_free(&cart);
     return ok ? 0 : 1;

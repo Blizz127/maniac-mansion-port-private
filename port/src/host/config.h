@@ -14,6 +14,8 @@ void config_set(config_t *c, const char *section_key, const char *value);
 const char *config_str(const config_t *c, const char *section, const char *key, const char *def);
 int config_int(const config_t *c, const char *section, const char *key, int def);
 bool config_bool(const config_t *c, const char *section, const char *key, bool def);
+/* Atomically persist a menu choice to the loaded config; preserve unrelated lines. */
+bool config_save_bool(config_t *c, const char *section, const char *key, bool value);
 void config_free(config_t *c);
 
 /* XDG locations for this port (created on demand). */

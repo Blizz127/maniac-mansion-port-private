@@ -7,6 +7,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define APP "maniac-mansion-port"
 
@@ -21,6 +22,7 @@ typedef struct {
 
 struct config {
     table_t file, cli; /* precedence: cli > environment > file */
+    char *path;
 };
 
 static char *trim(char *s)
@@ -59,6 +61,7 @@ config_t *config_load(const char *path, char *err, int errlen)
         snprintf(def, sizeof def, "%s/config.ini", path_config_dir());
         path = def;
     }
+    c->path = strdup(path);
     FILE *f = fopen(path, "r");
     if (!f) {
         if (explicit_path) {
@@ -151,10 +154,73 @@ bool config_bool(const config_t *c, const char *section, const char *key, bool d
 void config_free(config_t *c)
 {
     if (c) {
+        free(c->path);
         free(c->file.e);
         free(c->cli.e);
     }
     free(c);
+}
+
+/* Save one setting without reserializing ROM paths, mappings or comments.
+ * Use a same-directory atomic replacement; failure leaves the prior file intact. */
+bool config_save_bool(config_t *c, const char *section, const char *key, bool value)
+{
+    if (!c || !c->path || !section || !key || strpbrk(section, "[]\r\n") ||
+        strpbrk(key, "=\r\n"))
+        return false;
+    char *dir = strdup(c->path);
+    if (!dir) return false;
+    char *slash = strrchr(dir, '/');
+    if (slash) {
+        *slash = 0;
+        if (*dir && !path_mkdirs(dir)) { free(dir); return false; }
+    }
+    free(dir);
+    FILE *in = fopen(c->path, "r");
+    if (!in && errno != ENOENT) return false;
+    size_t len = strlen(c->path) + 16;
+    char *tmp = malloc(len);
+    if (!tmp) { if (in) fclose(in); return false; }
+    snprintf(tmp, len, "%s.tmp.XXXXXX", c->path);
+    int fd = mkstemp(tmp);
+    if (fd < 0) { if (in) fclose(in); free(tmp); return false; }
+    struct stat st;
+    if (stat(c->path, &st) == 0) fchmod(fd, st.st_mode & 0777);
+    FILE *out = fdopen(fd, "w");
+    if (!out) { close(fd); unlink(tmp); free(tmp); if (in) fclose(in); return false; }
+    char *line = NULL; size_t cap = 0;
+    bool target = false, found = false, newline = true, ok = true;
+    while (in && getline(&line, &cap, in) >= 0) {
+        char *copy = strdup(line);
+        if (!copy) { ok = false; break; }
+        char *text = trim(copy);
+        if (*text == '[') {
+            char *end = strchr(text, ']');
+            if (end) { *end = 0; target = !strcasecmp(trim(text + 1), section); }
+        }
+        char *eq = target && *text != '#' && *text != ';' ? strchr(text, '=') : NULL;
+        bool replace = false;
+        if (eq) { *eq = 0; replace = !strcasecmp(trim(text), key); }
+        if (replace) {
+            if (fprintf(out, "%s = %s\n", key, value ? "on" : "off") < 0) ok = false;
+            found = true; newline = true;
+        } else {
+            if (fputs(line, out) == EOF) ok = false;
+            size_t n = strlen(line); newline = n && line[n - 1] == '\n';
+        }
+        free(copy);
+    }
+    if (in) { if (ferror(in)) ok = false; fclose(in); }
+    free(line);
+    if (!found && fprintf(out, "%s[%s]\n%s = %s\n", newline ? "" : "\n",
+                          section, key, value ? "on" : "off") < 0) ok = false;
+    if (fflush(out) != 0 || fsync(fd) != 0) ok = false;
+    if (fclose(out) != 0) ok = false;
+    if (ok && rename(tmp, c->path) != 0) ok = false;
+    if (!ok) unlink(tmp);
+    free(tmp);
+    if (ok) put(&c->file, section, key, value ? "on" : "off");
+    return ok;
 }
 
 static const char *xdg(const char *var, const char *fallback, char *buf, size_t n)

@@ -31,4 +31,16 @@ void chord_init(chord_t *c);
  * the frame the menu should toggle. bit_select/bit_start are the pad bits. */
 uint8_t chord_step(chord_t *c, bool back, bool start, uint8_t bit_select, uint8_t bit_start, bool *fire);
 
+
+/* Wall-clock adjudication for optional enhancements. The legacy per-loop
+ * chord API remains unchanged when every enhancement is OFF. */
+typedef struct {
+    uint64_t press[2], duration[2], replay_until[2];
+    bool held[2], seen[2], pending[2], fired;
+} chord_timed_t;
+void chord_timed_init(chord_timed_t *c);
+uint8_t chord_timed_step(chord_timed_t *c, bool back, bool start,
+                         uint8_t bit_select, uint8_t bit_start,
+                         uint64_t now_ms, bool *fire);
+
 #endif

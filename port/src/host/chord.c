@@ -69,3 +69,52 @@ uint8_t chord_step(chord_t *c, bool back, bool start, uint8_t bit_select, uint8_
     }
     return out;
 }
+
+void chord_timed_init(chord_timed_t *c) { memset(c, 0, sizeof *c); }
+uint8_t chord_timed_step(chord_timed_t *c, bool back, bool start,
+                         uint8_t bit_select, uint8_t bit_start,
+                         uint64_t now, bool *fire)
+{
+    const bool held[2] = {back, start};
+    const uint8_t bits[2] = {bit_select, bit_start};
+    bool edge[2];
+    *fire = false;
+    for (int i = 0; i < 2; ++i) {
+        edge[i] = held[i] && !c->held[i];
+        if (edge[i]) {
+            c->press[i] = now; c->seen[i] = true;
+            c->pending[i] = false; c->replay_until[i] = 0;
+        } else if (!held[i] && c->held[i] && !c->fired) {
+            c->duration[i] = now - c->press[i];
+            c->pending[i] = c->duration[i] <= 300;
+        }
+        c->held[i] = held[i];
+    }
+    if (!c->fired) {
+        bool sequence = false;
+        for (int i = 0; i < 2; ++i)
+            if (edge[i] && c->seen[1 - i] && now - c->press[1 - i] <= 300)
+                sequence = true;
+        if ((back && start) || sequence) {
+            c->fired = true; *fire = true;
+            c->pending[0] = c->pending[1] = false;
+            c->replay_until[0] = c->replay_until[1] = 0;
+        }
+    }
+    uint8_t pass = 0;
+    if (!c->fired) {
+        for (int i = 0; i < 2; ++i) {
+            if (held[i] && now - c->press[i] > 300) pass |= bits[i];
+            if (c->pending[i] && now - c->press[i] >= 300) {
+                uint64_t duration = c->duration[i] < 34 ? 34 : c->duration[i];
+                c->replay_until[i] = now + duration; c->pending[i] = false;
+            }
+            if (now < c->replay_until[i]) pass |= bits[i];
+        }
+    }
+    uint64_t latest = c->press[0] > c->press[1] ? c->press[0] : c->press[1];
+    if (!back && !start && !c->pending[0] && !c->pending[1] &&
+        now >= c->replay_until[0] && now >= c->replay_until[1] && now - latest > 300)
+        chord_timed_init(c);
+    return pass;
+}

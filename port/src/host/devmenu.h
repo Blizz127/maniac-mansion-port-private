@@ -20,6 +20,8 @@ typedef struct {
     int aspect;    /* 0 = 8:7, 1 = square */
     int crop;      /* 0 = none, 1 = 8 lines top and bottom */
     bool show_help;
+    bool hold_walk, object_snap, quick_verbs;
+    bool smooth_display, graphics_sample; /* opt-in host presentation only */
     /* one-shot requests; the host clears them after acting */
     bool req_screenshot, req_quick_save, req_quick_load;
 } dm_state_t;
@@ -38,6 +40,10 @@ void devmenu_draw(devmenu_t *m, SDL_Renderer *r, SDL_Rect game);
 
 /* Draws a caption line centred in the given rectangle (recordings). */
 void devmenu_caption(devmenu_t *m, SDL_Renderer *r, SDL_Rect area, int scale, const char *text);
+
+/* Host overlay for optional input chooser and visible-object cursor marker. */
+void devmenu_qol_draw(devmenu_t *m, SDL_Renderer *r, SDL_Rect game, int crop,
+                      bool chooser, const char *verb, bool highlight, int x, int y);
 
 extern const int dm_ff_speeds[4]; /* frames per presented frame; 0 = max */
 
