@@ -56,6 +56,7 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD SELECT: QUICK VERBS", .toggle = &s->quick_verbs};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "DISPLAY FRAME PACING", .toggle = &s->smooth_display};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SCENE COLOR SAMPLE", .toggle = &s->graphics_sample};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "HOLD A + D-PAD: WALK"};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "B + D-PAD: FREE CURSOR"};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "SELECT TAP: ORIGINAL"};
         break;

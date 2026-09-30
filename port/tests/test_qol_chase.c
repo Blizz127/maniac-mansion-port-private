@@ -10,6 +10,7 @@
 
 static nes_t initial, n, reference;
 static unsigned failures;
+static qol_options_t chase_options = {.hold_walk = true};
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); failures++; } } while (0)
 
 static unsigned read_byte(nes_t *v, unsigned address) { return bus_peek(v, address); }
@@ -31,7 +32,7 @@ static bool same_state(void)
 }
 static void frame(qol_native_t *q, uint8_t pad)
 {
-    qol_native_update(&n, q, (qol_options_t){.hold_walk = true}, pad, true);
+    qol_native_update(&n, q, chase_options, pad, true);
     nes_set_pad(&n, 0, pad); nes_run_frame(&n);
 }
 static bool load_fixture(const char *path, const uint8_t id[8])
@@ -79,6 +80,7 @@ int main(int argc, char **argv)
     if (!load_fixture(argv[3], id)) return 3;
     CHECK(read_byte(&initial, 0x63c6) == 7);
     CHECK(read_byte(&initial, 0x6b0a) & 0x10); CHECK(active_x(&initial, 10) < 47);
+    chase_options = (qol_options_t){.hold_walk = true, .object_snap = true};
     memcpy(&n, &initial, sizeof n); qol_native_init(&q);
     frame(&q, 0); frame(&q, 0);
     unsigned retargets = 0; uint64_t last = 0;
@@ -95,7 +97,7 @@ int main(int argc, char **argv)
         last = q.last_walk_ms;
     }
     CHECK(!q.policy.holding_walk); CHECK(release_updates == 0);
-    printf("moving hold in natural chase: retargets=%u release updates=%u room=%u control=%02x failures=%u\n",
+    printf("combined hold + snap in natural chase: retargets=%u release updates=%u room=%u control=%02x failures=%u\n",
            retargets, release_updates, read_byte(&n, 0x63c6), read_byte(&n, 0x6b0a), failures);
     cart_free(&cart);
     return failures ? 1 : 0;

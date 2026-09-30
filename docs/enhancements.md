@@ -6,14 +6,14 @@ Every new enhancement defaults OFF. No release or remote publication is authoriz
 
 ## Input design
 
-A tap remains the native action. Proposed A hold threshold is 250 ms; subsequent
+A tap remains the native action. A hold threshold is 250 ms; subsequent
 walk updates are restricted to native Walk-to, a changed cursor destination,
 and enabled field input. Releasing A stops additional walk requests. It does not
 teleport the actor or cancel a walk the native game already accepted. Menus,
 cutscenes and actor/room changes require neutral input before resuming. Holding
 an interaction verb must not repeatedly activate its script.
 
-Select tap must retain character switching. Proposed held Select opens a quick
+Select tap must retain character switching. Held Select opens a quick
 verb chooser, with D-pad/arrow navigation, A/X confirmation and B/Z cancellation.
 Start+Select dev-menu processing takes priority. On a controller, its existing
 300 ms chord grace precedes the 250 ms quick-verb hold recognition; the keyboard
@@ -28,7 +28,10 @@ point. Native parent-object state controls visibility, including the doormat/key
 case. An object ID, owner nibble or resource-cache entry alone is insufficient.
 A stable nearest directional target needs a deterministic tie break and a free
 cursor escape. There are no hidden-object outlines, puzzle hints or new actions.
-Holding B while moving a direction temporarily restores free cursor movement;
+When walking and snapping are both enabled, held A with native Walk-to uses
+the normal D-pad/arrow cursor movement for continuous walking; A release restores
+directional object snapping. Holding B while moving a direction temporarily
+restores free cursor movement;
 the B modifier is consumed so it does not cancel a two-object sentence. Lone B
 retains the native behavior. See enhancement-input.md for the native adapter.
 
@@ -90,13 +93,14 @@ Each lane must distinguish policy/unit checks from actual cartridge execution.
 Final acceptance needs all-OFF retail state identity, real held-A/menu/release
 and chase checks, visible-only selection, native verb/two-object equivalence,
 keyboard/controller parity, display-rate timer/audio/puzzle stability, and sample
-before/after checks. Results and outstanding limits will be recorded here after
-integration; helper-only checks do not establish feature completion.
+before/after checks. The integrated results and outstanding limits below distinguish actual ROM
+execution from helper-only checks.
 
 ## Integrated evidence (2026-09-30)
 
 The integration branch is `codex/enh-integrate`, based on published `edf82498`.
-Input lane `9e95ce8` is integrated as `0aaeed8`; presentation lane commits are
+Input lane `9e95ce8` is integrated as `0aaeed8`; the combined walking/snapping
+fix `aeda2d8` is integrated as `df57b05`. Presentation lane commits are
 integrated as `e9aca0e`, `eaff03a`, and `19c3f4a`. No source or package was pushed.
 
 - Six CTest checks pass: pads, config persistence, enhancement-menu/overlay,
@@ -123,8 +127,10 @@ integrated as `e9aca0e`, `eaff03a`, and `19c3f4a`. No source or package was push
   rearming. A separate input-only continuation naturally enters Hall `$0A`,
   then Kitchen `$07`, triggers Edna's pursuit, and reaches capture in Dungeon
   `$04`. In an active chase, 90 stationary-hold native states equal baseline,
-  including pursuit/capture. In a naturally fleeing chase, held A retargets once;
-  releasing A causes zero additional updates over the next 35 frames.
+  including pursuit/capture. In a naturally fleeing chase with walking and snapping both enabled, held A
+  retargets once; releasing A causes zero additional updates over the next 35
+  frames. Native fixture checks also verify snapping resumes after release and
+  a new direction press.
 - In isolated Xvfb, actual XTest keyboard events and a virtual Xbox controller
   feed the production keymap/pad polling functions. All 100 native-frame states
   match, including chooser/verb and free-cursor input. This is device-pipeline
