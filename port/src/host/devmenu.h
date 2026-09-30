@@ -36,6 +36,9 @@ void devmenu_toast(devmenu_t *m, const char *fmt, ...);
 /* Draws the menu (if open), the help page (if on) and the toast. */
 void devmenu_draw(devmenu_t *m, SDL_Renderer *r, SDL_Rect game);
 
+/* Draws a caption line centred in the given rectangle (recordings). */
+void devmenu_caption(devmenu_t *m, SDL_Renderer *r, SDL_Rect area, int scale, const char *text);
+
 extern const int dm_ff_speeds[4]; /* frames per presented frame; 0 = max */
 
 #endif

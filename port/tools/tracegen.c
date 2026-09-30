@@ -8,6 +8,7 @@
  *   seek SPRITE X Y     move the pointer (OAM entry SPRITE) with the D-pad
  *                       until it is within 2 px of (X, Y); tap near the end
  *   untilchange N       wait (no input) until the frame changes, at most N frames
+ *   mark NAME           emit "# mark NAME FRAME" (anchors for scripted dev keys, captions)
  *
  * The emitted trace is plain frame/button data: replaying it in the port or
  * in a reference emulator reproduces the same run. Frame numbers are
@@ -126,6 +127,8 @@ int main(int argc, char **argv)
             for (long n = strtol(a2, NULL, 10); n > 0; n--)
                 step(b);
             step(0);
+        } else if (!strcmp(cmd, "mark")) {
+            printf("# mark %s %ld\n", a1, frame);
         } else if (!strcmp(cmd, "untilchange")) {
             memcpy(prev, nes.ppu.fb, sizeof prev);
             for (long n = strtol(a1, NULL, 10); n > 0 && !fb_changed(prev, nes.ppu.fb); n--)
@@ -152,7 +155,7 @@ int main(int argc, char **argv)
                 if (dy < -2) b |= PAD_UP;
                 /* near the target, tap (press one frame, release one) to
                  * defeat the pointer's acceleration */
-                if (abs(dx) < 12 && abs(dy) < 12 && (frame & 1))
+                if (abs(dx) < 12 && abs(dy) < 12 && (frame & 2))
                     b = 0;
                 step(b);
             }

@@ -306,6 +306,10 @@ typedef struct {
     bool par87;
     int crop; /* lines hidden at top and bottom */
     char window_shot[1024]; /* pending capture of the next presented frame */
+    FILE *record;           /* --record-video: raw RGB24 of every presented frame */
+    FILE *record_idx;       /* <video>.idx: game frame number of each video frame */
+    long game_frame;
+    const char *caption_top, *caption_bottom;
     uint32_t lut[512];
 } video_t;
 
@@ -363,6 +367,25 @@ static void video_present(video_t *v, const uint16_t *fb, devmenu_t *dm)
     }
     if (dm)
         devmenu_draw(dm, v->ren, dst); /* host overlay on the presented copy */
+    if (dm && (v->caption_top || v->caption_bottom)) { /* recordings: in the letterbox bars */
+        int sc = dst.y >= 40 ? 3 : 2;
+        devmenu_caption(dm, v->ren, (SDL_Rect){0, 0, ww, dst.y}, sc, v->caption_top);
+        devmenu_caption(dm, v->ren, (SDL_Rect){0, dst.y + dst.h, ww, wh - dst.y - dst.h}, 2, v->caption_bottom);
+    }
+    if (v->record) {
+        static uint8_t *rgb;
+        static size_t cap;
+        size_t need = (size_t)ww * wh * 3;
+        if (need > cap) {
+            rgb = realloc(rgb, need);
+            cap = need;
+        }
+        if (SDL_RenderReadPixels(v->ren, NULL, SDL_PIXELFORMAT_RGB24, rgb, ww * 3) == 0) {
+            fwrite(rgb, 1, need, v->record);
+            if (v->record_idx) /* video frame -> game frame, for editing */
+                fprintf(v->record_idx, "%ld\n", v->game_frame);
+        }
+    }
     if (v->window_shot[0]) { /* tests: capture exactly what is presented */
         int w, h;
         SDL_GetRendererOutputSize(v->ren, &w, &h);
@@ -484,6 +507,7 @@ int main(int argc, char **argv)
     const char *cli_rom = NULL, *cfg_path = NULL, *trace_path = NULL, *shot_path = NULL, *hash_path = NULL;
     long max_frames = -1, shot_frame = -1;
     struct { long frame; char path[1024]; } wshots[16];
+    const char *rec_video = NULL, *rec_audio = NULL, *captions_path = NULL;
     int nwshots = 0;
     bool check_only = false;
     for (int i = 1; i < argc; i++) {
@@ -511,6 +535,12 @@ int main(int argc, char **argv)
             wshots[nwshots].frame = strtol(argv[++i], &colon, 10);
             if (*colon == ':')
                 snprintf(wshots[nwshots++].path, sizeof wshots[0].path, "%s", colon + 1);
+        } else if (!strcmp(argv[i], "--record-video") && i + 1 < argc) {
+            rec_video = argv[++i]; /* raw RGB24 frames, one per presented frame (demos) */
+        } else if (!strcmp(argv[i], "--record-audio") && i + 1 < argc) {
+            rec_audio = argv[++i]; /* 48 kHz mono s16 WAV at game time */
+        } else if (!strcmp(argv[i], "--captions") && i + 1 < argc) {
+            captions_path = argv[++i]; /* "FRAME top|bottom TEXT" lines */
         } else if (!strcmp(argv[i], "--check-rom")) {
             check_only = true;
         } else if (!strcmp(argv[i], "--version")) {
@@ -581,6 +611,9 @@ int main(int argc, char **argv)
     bool fullscreen = config_bool(cfg, "video", "fullscreen", false);
     bool vsync = config_bool(cfg, "video", "vsync", true);
     int win_w = (int)(NES_W * (v.par87 ? 8.0 / 7.0 : 1.0) * scale + 0.5), win_h = (NES_H - 2 * v.crop) * scale;
+    const char *wsize = config_str(cfg, "video", "window", NULL); /* e.g. 1920x1080 */
+    if (wsize)
+        sscanf(wsize, "%dx%d", &win_w, &win_h);
     v.win = SDL_CreateWindow("Maniac Mansion", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, win_w, win_h,
                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI |
                                  (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
@@ -713,6 +746,46 @@ int main(int argc, char **argv)
     }
     devkey_t devkeys[64];
     int ndevkeys = dev_on ? parse_devkeys(devkeys, 64) : 0, devkey_i = 0;
+    /* recordings: exact game time, one video frame per presented frame */
+    bool recording = rec_video != NULL;
+    FILE *wav = rec_audio ? fopen(rec_audio, "wb") : NULL;
+    uint32_t wav_samples = 0;
+    if (recording) {
+        v.record = fopen(rec_video, "wb");
+        if (!v.record) {
+            fatal_box("Maniac Mansion", "cannot open --record-video output");
+            return 1;
+        }
+        char idx[1100];
+        snprintf(idx, sizeof idx, "%s.idx", rec_video);
+        v.record_idx = strncmp(rec_video, "/dev/", 5) ? fopen(idx, "w") : NULL;
+        if (!v.record_idx && getenv("MM_RECORD_IDX"))
+            v.record_idx = fopen(getenv("MM_RECORD_IDX"), "w");
+        logf_("recording: video %s, audio %s (%dx%d)", rec_video, rec_audio ? rec_audio : "-", win_w, win_h);
+    }
+    if (wav)
+        fwrite((uint8_t[44]){0}, 1, 44, wav);
+    struct { long frame; int bottom; char text[120]; } caps[128];
+    int ncaps = 0, cap_i = 0;
+    if (captions_path) {
+        FILE *cf = fopen(captions_path, "r");
+        char line[256];
+        while (cf && ncaps < 128 && fgets(line, sizeof line, cf)) {
+            long fr;
+            char where[16];
+            int used = 0;
+            if (line[0] == '#' || sscanf(line, "%ld %15s %n", &fr, where, &used) < 2)
+                continue;
+            line[strcspn(line, "\n")] = 0;
+            caps[ncaps].frame = fr;
+            caps[ncaps].bottom = !strcmp(where, "bottom");
+            snprintf(caps[ncaps].text, sizeof caps[0].text, "%s", line + used);
+            ncaps++;
+        }
+        if (cf)
+            fclose(cf);
+    }
+    static char cap_top[120], cap_bottom[120];
     bool drain = false;          /* after the menu closes: wait for neutral */
     int combo_hold = 0;          /* frames Back or Start has been held (opt-in) */
     bool combo_fired = false;
@@ -877,6 +950,13 @@ int main(int argc, char **argv)
             nes_set_pad(&nes, 0, game_in);
         }
 
+        while (cap_i < ncaps && caps[cap_i].frame <= frame_no) {
+            snprintf(caps[cap_i].bottom ? cap_bottom : cap_top, 120, "%s", caps[cap_i].text);
+            cap_i++;
+        }
+        v.caption_top = cap_top[0] ? cap_top : NULL;
+        v.caption_bottom = cap_bottom[0] ? cap_bottom : NULL;
+
         /* timing */
         uint64_t now = SDL_GetPerformanceCounter();
         acc += (double)(now - last) / (double)freq;
@@ -885,7 +965,11 @@ int main(int argc, char **argv)
             acc = frame_time; /* after a stall, don't try to catch up */
         int to_run = 0;
         uint64_t budget = 0;
-        if (ff) {
+        if (recording) {
+            /* no wall clock: one presented frame per loop, ff frames per present */
+            int sp = dm_ff_speeds[dms.ff_speed];
+            to_run = ff ? (sp ? sp : 8) : 1;
+        } else if (ff) {
             int sp = dm_ff_speeds[dms.ff_speed];
             to_run = sp ? sp : 64;
             budget = sp ? 0 : now + freq / 70; /* max: whatever fits in ~14 ms */
@@ -921,6 +1005,13 @@ int main(int argc, char **argv)
                     snprintf(v.window_shot, sizeof v.window_shot, "%s", wshots[w].path);
             frame_no++;
             size_t n = nes_audio_take(&nes, abuf, sizeof abuf / sizeof abuf[0]);
+            if (wav && f == to_run - 1) {
+                /* one frame of audio per video frame; silent while fast-forwarding */
+                if (ff)
+                    memset(abuf, 0, n * sizeof abuf[0]);
+                fwrite(abuf, sizeof abuf[0], n, wav);
+                wav_samples += (uint32_t)n;
+            }
             if (adev && !ff) {
                 if (volume != 100)
                     for (size_t k = 0; k < n; k++)
@@ -944,6 +1035,7 @@ int main(int argc, char **argv)
             if (err_ratio < -1) err_ratio = -1;
             nes.apu.cycles_per_sample = base_cps * (1.0 + 0.005 * err_ratio);
         }
+        v.game_frame = frame_no;
         if (to_run)
             video_present(&v, nes.ppu.fb, dm);
         else
@@ -951,6 +1043,20 @@ int main(int argc, char **argv)
         save_flush(&save, &nes, false);
     }
 
+    if (v.record)
+        fclose(v.record);
+    if (v.record_idx)
+        fclose(v.record_idx);
+    if (wav) { /* 48 kHz mono s16 */
+        uint32_t data = wav_samples * 2, riff = 36 + data, r = (uint32_t)rate, br = r * 2, fmt = 16;
+        uint16_t pcm = 1, ch = 1, al = 2, bits = 16;
+        rewind(wav);
+        fwrite("RIFF", 1, 4, wav); fwrite(&riff, 4, 1, wav); fwrite("WAVEfmt ", 1, 8, wav);
+        fwrite(&fmt, 4, 1, wav); fwrite(&pcm, 2, 1, wav); fwrite(&ch, 2, 1, wav); fwrite(&r, 4, 1, wav);
+        fwrite(&br, 4, 1, wav); fwrite(&al, 2, 1, wav); fwrite(&bits, 2, 1, wav);
+        fwrite("data", 1, 4, wav); fwrite(&data, 4, 1, wav);
+        fclose(wav);
+    }
     save_flush(&save, &nes, true);
     if (frame_no)
         logf_("frames: %ld, core %.3f ms/frame (%.0f fps capable)", frame_no,

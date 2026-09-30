@@ -240,7 +240,7 @@ void devmenu_draw(devmenu_t *m, SDL_Renderer *r, SDL_Rect g)
     if (!m->open && !m->st->show_help && !toast)
         return;
     ensure_font(m, r);
-    int sc = g.h / 240;
+    int sc = g.h / 224; /* 224: stays the same with or without overscan crop */
     if (sc < 1)
         sc = 1;
     int lh = 10 * sc;
@@ -290,4 +290,13 @@ void devmenu_draw(devmenu_t *m, SDL_Renderer *r, SDL_Rect g)
         panel(r, box);
         text(m, r, box.x + 6 * sc, box.y + 3 * sc, sc, 0xFFFFFF, m->toast);
     }
+}
+
+void devmenu_caption(devmenu_t *m, SDL_Renderer *r, SDL_Rect area, int sc, const char *s)
+{
+    if (!s || !*s)
+        return;
+    ensure_font(m, r);
+    int w = (int)strlen(s) * 8 * sc;
+    text(m, r, area.x + (area.w - w) / 2, area.y + (area.h - 8 * sc) / 2, sc, 0xE8E8F0, s);
 }
