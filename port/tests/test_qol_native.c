@@ -124,7 +124,12 @@ static void runtime(void) {
     memcpy(&n,&base,sizeof n);qol_native_init(&q);
     qol_options_t snap={.object_snap=true};
     CHECK(qol_native_cursor(&n,16,39));hook_frames(&q,snap,0,2,true);
-    hook_frames(&q,snap,PAD_RIGHT,2,true);CHECK(q.highlight);
+    /* Plain d-pad keeps the native free cursor; B + direction snaps. */
+    memcpy(&baseline,&n,sizeof baseline);baseline.apu.out=NULL;baseline.apu.out_cap=baseline.apu.out_len=0;
+    for(unsigned f=0;f<12;f++){qol_native_update(&n,&q,snap,PAD_RIGHT,true);pair_frames(PAD_RIGHT,1);CHECK(identical());}
+    CHECK(!q.highlight);CHECK(bus_peek(&n,0x7116)>16);
+    CHECK(qol_native_cursor(&n,16,39));hook_frames(&q,snap,0,2,true);
+    hook_frames(&q,snap,PAD_B,1,true);hook_frames(&q,snap,PAD_B|PAD_RIGHT,2,true);CHECK(q.highlight);
     if(q.highlight){CHECK(bus_peek(&n,0x7116)==(unsigned)q.selected.x);CHECK(bus_peek(&n,0x7118)==(unsigned)q.selected.y);}
     /* Host menu disables hook and discards ongoing gestures without input.
      * This checks the runtime adapter, not physical menu/controller polling. */
@@ -155,7 +160,7 @@ static void runtime(void) {
     CHECK(!q.policy.holding_walk);CHECK(q.last_walk_ms==last);
     hook_frames(&q,combined,0,2,true);
     CHECK(qol_native_cursor(&n,16,39));hook_frames(&q,combined,0,2,true);
-    hook_frames(&q,combined,PAD_RIGHT,2,true);CHECK(q.highlight);
+    hook_frames(&q,combined,PAD_B,1,true);hook_frames(&q,combined,PAD_B|PAD_RIGHT,2,true);CHECK(q.highlight);
     CHECK(q.last_walk_ms==last);
     printf("combined hold+snap: native cursor retarget, release, resumed edge snap failures=%u\n",failures);
     memcpy(&n,&base,sizeof n);qol_native_init(&q);

@@ -21,7 +21,7 @@ typedef struct {
     int crop;      /* 0 = none, 1 = 8 lines top and bottom */
     bool show_help;
     bool enhanced_mode; /* boot mode gates every enhancement */
-    bool hold_walk, object_snap, quick_verbs;
+    bool hold_walk, object_snap, quick_verbs, direct_walk;
     bool kid_switching; /* Enhanced-only replacement; native New Kid stays available */
     int party_out, party_in; /* menu indices into the six non-Dave identities */
     bool req_party_swap;

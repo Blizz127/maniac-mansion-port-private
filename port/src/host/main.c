@@ -958,7 +958,9 @@ int main(int argc, char **argv)
     dms.hold_walk = enhanced && config_bool(cfg, "enhancements", "hold_walk", false);
     dms.object_snap = enhanced && config_bool(cfg, "enhancements", "object_snap", false);
     dms.quick_verbs = enhanced && config_bool(cfg, "enhancements", "quick_verbs", false);
+    dms.direct_walk = enhanced && config_bool(cfg, "enhancements", "direct_walk", false);
     bool saved_hold = dms.hold_walk, saved_snap = dms.object_snap, saved_verbs = dms.quick_verbs;
+    bool saved_direct = dms.direct_walk;
     qol_native_t qol;
     qol_native_init(&qol);
     v.qol = &qol;
@@ -967,8 +969,8 @@ int main(int argc, char **argv)
     int32_t qol_pad_owner = pads.set.active;
     dms.smooth_display = enhanced && config_bool(cfg, "enhancements", "smooth_display", false);
     dms.graphics_sample = enhanced && config_bool(cfg, "enhancements", "graphics_sample", false);
-    logf_("[MODE] effective enhancements hold_walk=%d object_snap=%d quick_verbs=%d smooth_display=%d graphics_sample=%d kid_switching=%d",
-          dms.hold_walk, dms.object_snap, dms.quick_verbs, dms.smooth_display, dms.graphics_sample, dms.kid_switching);
+    logf_("[MODE] effective enhancements hold_walk=%d object_snap=%d quick_verbs=%d direct_walk=%d smooth_display=%d graphics_sample=%d kid_switching=%d",
+          dms.hold_walk, dms.object_snap, dms.quick_verbs, dms.direct_walk, dms.smooth_display, dms.graphics_sample, dms.kid_switching);
     bool saved_smooth = dms.smooth_display, saved_graphics = dms.graphics_sample;
     v.graphics_sample = dms.graphics_sample;
     dms.ff_speed = 1;
@@ -1046,11 +1048,11 @@ int main(int argc, char **argv)
             case SDL_WINDOWEVENT:
                 if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
                     focus_active = false;
-                    if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
+                    if (dms.hold_walk || dms.object_snap || dms.quick_verbs || dms.direct_walk) drain = true;
                 }
                 else if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                     focus_active = true;
-                    if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
+                    if (dms.hold_walk || dms.object_snap || dms.quick_verbs || dms.direct_walk) drain = true;
                 }
                 break;
             case SDL_CONTROLLERDEVICEADDED: pads_open(&pads, e.cdevice.which); break;
@@ -1125,7 +1127,7 @@ int main(int argc, char **argv)
         uint8_t hot;
         uint8_t gp = pads_poll(&pads, &hot);
         if (qol_pad_owner != pads.set.active) {
-            if (qol_pad_owner >= 0 && (dms.hold_walk || dms.object_snap || dms.quick_verbs)) {
+            if (qol_pad_owner >= 0 && (dms.hold_walk || dms.object_snap || dms.quick_verbs || dms.direct_walk)) {
                 qol_native_init(&qol);
                 drain = true;
             }
@@ -1138,7 +1140,7 @@ int main(int argc, char **argv)
              * opt-in on, both are held back from the game for a short grace
              * window so the combo never also reaches the game. */
             bool fire = false;
-            bool use_timed = dms.hold_walk || dms.object_snap || dms.quick_verbs ||
+            bool use_timed = dms.hold_walk || dms.object_snap || dms.quick_verbs || dms.direct_walk ||
                              dms.smooth_display || dms.graphics_sample || dms.kid_switching;
             if (use_timed != timed_chord_on) {
                 chord_init(&chord); chord_timed_init(&enhanced_chord);
@@ -1193,12 +1195,12 @@ int main(int argc, char **argv)
                 dms.req_quick_load = false;
                 quick_load(&nes, prg_id, dm, mode, &party);
                 qol_native_init(&qol);
-                if (dms.hold_walk || dms.object_snap || dms.quick_verbs) drain = true;
+                if (dms.hold_walk || dms.object_snap || dms.quick_verbs || dms.direct_walk) drain = true;
             }
             /* Original mode never enables/persists enhancement choices,
              * even if an older menu or scripted input requests a toggle. */
             if (!enhanced) {
-                dms.hold_walk = dms.object_snap = dms.quick_verbs = false;
+                dms.hold_walk = dms.object_snap = dms.quick_verbs = dms.direct_walk = false;
                 dms.smooth_display = dms.graphics_sample = false;
                 dms.restore_ed = dms.restore_scumm = false;
             }
@@ -1242,6 +1244,11 @@ int main(int argc, char **argv)
                 saved_verbs = dms.quick_verbs;
                 if (!config_save_bool(cfg, "enhancements", "quick_verbs", saved_verbs))
                     devmenu_toast(dm, "VERB SETTING SAVE FAILED");
+            }
+            if (saved_direct != dms.direct_walk) {
+                saved_direct = dms.direct_walk;
+                if (!config_save_bool(cfg, "enhancements", "direct_walk", saved_direct))
+                    devmenu_toast(dm, "WALK SETTING SAVE FAILED");
             }
             if (saved_smooth != dms.smooth_display) {
                 saved_smooth = dms.smooth_display;
@@ -1292,7 +1299,7 @@ int main(int argc, char **argv)
                 qol_native_init(&qol);
             }
             if (party.pending || party.executing) game_in = 0;
-            qol_native_update(&nes, &qol, (qol_options_t){dms.hold_walk, dms.object_snap, dms.quick_verbs},
+            qol_native_update(&nes, &qol, (qol_options_t){dms.hold_walk, dms.object_snap, dms.quick_verbs, dms.direct_walk},
                               game_in, !menu && !drain && !trace_path && focus_active && !chord_active &&
                               !party.pending && !party.executing);
             dispatch.input_hook = nes.exec_hook; dispatch.input_userdata = nes.exec_hook_ud;

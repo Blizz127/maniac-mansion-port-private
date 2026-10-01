@@ -18,7 +18,7 @@ qol_result_t qol_input_step(qol_input_t *s, qol_options_t o, qol_context_t c,
 {
     qol_result_t r = { .pad = pad };
     /* OFF is exact pass-through even in a menu: host owns menu consumption. */
-    if (!o.hold_walk && !o.object_snap && !o.quick_verbs) {
+    if (!o.hold_walk && !o.object_snap && !o.quick_verbs && !o.direct_walk) {
         qol_input_reset(s);
         return r;
     }
@@ -215,12 +215,19 @@ bool qol_native_verb_cursor(nes_t *n, unsigned id)
 }
 
 void qol_native_init(qol_native_t *s) { memset(s, 0, sizeof(*s)); }
+typedef struct { const nes_t *n; unsigned count; } walk_scene_t;
+static bool occupied(void *ud, int x, int y)
+{
+    const walk_scene_t *w = ud;
+    return w->count > 34 || hit_slot(w->n, w->count, (unsigned)x & 255u, (unsigned)y / 4u) != 0;
+}
 static void native_hook(nes_t *n, void *opaque)
 {
     qol_native_t *s = opaque;
+    sw_native_exec(n, &s->sw);
     if (n->cpu.pc != 0x913f || n->mmc1.prg_lo != n->prg) return;
+    if (s->sw.pending && ++s->sw.pending_frames > SW_PENDING_FRAMES) { s->sw.pending = false; s->sw.timeouts++; }
     uint64_t now = n->master / 21477u; /* emulated NTSC master-clock milliseconds */
-    uint8_t old = s->policy.previous;
     unsigned verb = guest(n, 0x611a);
     unsigned scene_x = (guest(n,0x7116) / 8 + guest(n,0x6c31)) & 255u;
     unsigned scene_y = ((guest(n,0x7118) + 1) / 2 - 18) / 4;
@@ -286,19 +293,15 @@ static void native_hook(nes_t *n, void *opaque)
             s->restore_cursor = true;
         }
     }
-    uint8_t directions = (uint8_t)(s->input & (PAD_UP|PAD_DOWN|PAD_LEFT|PAD_RIGHT));
-    if (s->options.object_snap && scene && verb != 7 && directions && (s->input & PAD_B)) {
-        n->ram[2] &= (uint8_t)~0x40;
-        n->ram[0x2f] &= (uint8_t)~0x40;
-    }
-    if (s->options.object_snap && scene && verb != 7 &&
-        !(s->options.hold_walk && verb == 13 && (s->input & PAD_A)) && !s->policy.chooser && !s->policy.select_pending &&
-        !(s->input & (PAD_B|PAD_SELECT|PAD_START))) {
-        n->ram[2] &= 0xf0; /* snapping owns scene directions; B keeps free cursor */
-        uint8_t edge = (uint8_t)(directions & ~old);
-        if (edge) {
-            qol_direction_t d = edge & PAD_UP ? QOL_UP : edge & PAD_DOWN ? QOL_DOWN :
-                edge & PAD_LEFT ? QOL_LEFT : QOL_RIGHT;
+    if (s->options.object_snap && verb != 7 && !s->policy.chooser && !s->policy.select_pending) {
+        /* D-pad keeps the native free cursor; B + direction snaps (snapwalk.c). */
+        sw_snap_result_t sr = sw_snap_step(&s->sw.snap, s->input);
+        uint8_t consumed = (uint8_t)(s->input & ~sr.pad);
+        if (consumed & PAD_B) { n->ram[2] &= (uint8_t)~0x40; n->ram[0x2f] &= (uint8_t)~0x40; }
+        if (consumed & (PAD_UP|PAD_DOWN|PAD_LEFT|PAD_RIGHT)) n->ram[2] &= 0xf0;
+        if (sr.pulse_b) n->ram[0x2f] |= 0x40; /* one native B edge for a lone tap */
+        if (sr.snap && scene) {
+            qol_direction_t d = sr.dy < 0 ? QOL_UP : sr.dy > 0 ? QOL_DOWN : sr.dx < 0 ? QOL_LEFT : QOL_RIGHT;
             qol_target_t targets[34], chosen;
             size_t count = qol_native_targets(n, targets, 34);
             if (qol_snap(targets,count,s->selected_id,c.cursor_x,c.cursor_y,16,35,240,175,d,&chosen) &&
@@ -306,7 +309,25 @@ static void native_hook(nes_t *n, void *opaque)
                 s->selected = chosen; s->selected_id = chosen.id; s->highlight = true;
             }
         }
-    } else { s->highlight = false; s->selected_id = 0; }
+    } else { sw_snap_reset(&s->sw.snap); s->highlight = false; s->selected_id = 0; }
+    if (s->options.direct_walk) {
+        sw_walk_context_t wc = { .walk_verb = verb == 13, .pointer_in_scene = scene,
+            .sentence_pending = c.sentence_pending,
+            .blocked = s->policy.chooser || s->policy.select_pending || s->sw.snap.b_pending };
+        int ax, ay, tx, ty;
+        bool kid = sw_native_actor(n, &ax, &ay);
+        wc.kid_idle = kid && !guest(n, 0x6cce + (unsigned)(int8_t)guest(n, 0x6d22 + guest(n, 0x6100)));
+        sw_walk_result_t wr = sw_walk_step(&s->sw.walk, wc, s->input, now);
+        uint8_t consumed = (uint8_t)(s->input & ~wr.pad);
+        if (consumed & (PAD_UP|PAD_DOWN|PAD_LEFT|PAD_RIGHT)) n->ram[2] &= 0xf0;
+        if (consumed & PAD_A) { n->ram[2] &= 0x7f; n->prgram[0x710e - 0x6000] = 0; }
+        if (wr.pulse_a) n->prgram[0x710e - 0x6000] = 0x80; /* the withheld native A edge */
+        walk_scene_t ws = { n, count_now };
+        if (wr.request && !(kid &&
+            sw_walk_target(ax, ay, wr.dx, wr.dy, (int)guest(n, 0x6c31), SW_REACH_WALK, occupied, &ws, &tx, &ty) &&
+            sw_native_request(n, &s->sw, tx, ty)))
+            s->sw.walk.last_ms = now - SW_WALK_REPEAT_MS; /* not issued: retry next frame */
+    } else sw_walk_reset(&s->sw.walk);
     if (r.walk_update && now - s->last_walk_ms >= 100 && !s->restore_cursor) {
         n->prgram[0x710e - 0x6000] = 0x80;
         s->last_walk_ms = now;
@@ -315,7 +336,7 @@ static void native_hook(nes_t *n, void *opaque)
 void qol_native_update(nes_t *n, qol_native_t *s, qol_options_t options,
                        uint8_t input, bool permitted)
 {
-    bool enabled = options.hold_walk || options.object_snap || options.quick_verbs;
+    bool enabled = options.hold_walk || options.object_snap || options.quick_verbs || options.direct_walk;
     if (enabled && (!(guest(n,0x6b0a)&0x10) || guest(n,0x6b08) || guest(n,0x6b09)))
         permitted = false; /* $913F may not run at all during a cutscene. */
     s->options = options; s->input = input; s->permitted = permitted;
@@ -323,10 +344,21 @@ void qol_native_update(nes_t *n, qol_native_t *s, qol_options_t options,
         n->exec_hook = native_hook;
         n->exec_hook_ud = s;
     } else {
-        if (n->exec_hook == native_hook && n->exec_hook_ud == s) {
+        sw_native_t walk = s->sw;
+        bool bound = n->exec_hook == native_hook && n->exec_hook_ud == s;
+        if (bound && !walk.pending) {
             n->exec_hook = NULL; n->exec_hook_ud = NULL;
         }
         qol_native_init(s);
+        /* A walk request already latched must still read its own target, or
+         * the engine would walk to the visible cursor. Keep only that. */
+        if (bound && walk.pending) {
+            s->sw.pending = true; s->sw.pending_frames = walk.pending_frames;
+            s->sw.target_x = walk.target_x; s->sw.target_y = walk.target_y;
+            s->sw.room = walk.room; s->sw.actor = walk.actor;
+        }
+        s->sw.requests = walk.requests; s->sw.consumed = walk.consumed; /* diagnostics */
+        s->sw.timeouts = walk.timeouts; s->sw.cancels = walk.cancels;
         /* Returning from a host context always requires neutral. */
         s->policy.blocked = input != 0;
     }

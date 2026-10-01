@@ -7,7 +7,7 @@
 /* Host policy only. A verified guest adapter must supply these facts and execute
  * resulting intents through native input/UI. Pure policy never writes NES RAM;
  * the explicitly bound USA adapter below updates verified cursor/input fields. */
-typedef struct { bool hold_walk, object_snap, quick_verbs; } qol_options_t;
+typedef struct { bool hold_walk, object_snap, quick_verbs, direct_walk; } qol_options_t;
 typedef struct {
     bool gameplay, input_enabled, menu, cutscene, chord, walk_verb;
     bool free_walk, sentence_pending;
@@ -51,6 +51,7 @@ bool qol_snap(const qol_target_t *targets, size_t count, uint32_t current_id,
 /* USA-only adapter. Caller verifies ROM identity before use, runs once per
  * emulated frame, and never invokes during host menus, trace playback or load. */
 #include "../core/nes.h"
+#include "snapwalk.h"
 bool qol_native_ready(const nes_t *nes);
 size_t qol_native_targets(const nes_t *nes, qol_target_t *out, size_t capacity);
 bool qol_native_cursor(nes_t *nes, int x, int y);
@@ -65,6 +66,7 @@ typedef struct {
     uint64_t last_walk_ms;
     qol_target_t selected;
     bool highlight;
+    sw_native_t sw; /* snap combo and direct walk (snapwalk.c) */
 } qol_native_t;
 void qol_native_init(qol_native_t *state);
 /* Call with already adjudicated keyboard|pad input. permitted=false for menus,

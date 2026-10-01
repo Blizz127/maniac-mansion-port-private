@@ -57,15 +57,16 @@ static int page_items(devmenu_t *m, page_t p, item_t *out)
             break;
         }
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD A: WALK TO", .toggle = &s->hold_walk};
-        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SNAP VISIBLE OBJECTS", .toggle = &s->object_snap};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "B + D-PAD: SNAP TO OBJECT", .toggle = &s->object_snap};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "HOLD SELECT: QUICK VERBS", .toggle = &s->quick_verbs};
+        out[n++] = (item_t){.kind = IT_TOGGLE, .label = "A + D-PAD: WALK KID", .toggle = &s->direct_walk};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "DISPLAY FRAME PACING", .toggle = &s->smooth_display};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "SCENE COLOR SAMPLE", .toggle = &s->graphics_sample};
         out[n++] = (item_t){.kind = IT_TOGGLE, .label = "TEAMMATE REPLACEMENT", .toggle = &s->kid_switching};
         out[n++] = (item_t){.kind = IT_PAGE, .label = "CHOOSE TEAMMATES", .page = PG_TEAMMATES};
         out[n++] = (item_t){.kind = IT_PAGE, .label = "CONTENT RESTORATION", .page = PG_RESTORATION};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "HOLD A + D-PAD: WALK"};
-        out[n++] = (item_t){.kind = IT_NOTE, .label = "B + D-PAD: FREE CURSOR"};
+        out[n++] = (item_t){.kind = IT_NOTE, .label = "D-PAD: FREE CURSOR"};
         out[n++] = (item_t){.kind = IT_NOTE, .label = "SELECT TAP: ORIGINAL"};
         break;
     case PG_RESTORATION:

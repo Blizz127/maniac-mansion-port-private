@@ -11,8 +11,8 @@ int main(void)
     for (int i=0; i<3; ++i) devmenu_nav(m, DM_DOWN);
     devmenu_nav(m, DM_OK); /* Options */
     devmenu_nav(m, DM_OK); /* Enhancements */
-    bool *choices[] = {&s.hold_walk, &s.object_snap, &s.quick_verbs, &s.smooth_display, &s.graphics_sample, &s.kid_switching};
-    for (int i=0; i<6; ++i) {
+    bool *choices[] = {&s.hold_walk, &s.object_snap, &s.quick_verbs, &s.direct_walk, &s.smooth_display, &s.graphics_sample, &s.kid_switching};
+    for (int i=0; i<7; ++i) {
         assert(!*choices[i]);
         devmenu_nav(m, DM_OK); assert(*choices[i]);
         devmenu_nav(m, DM_OK); assert(!*choices[i]);
@@ -34,7 +34,7 @@ int main(void)
     devmenu_toggle(restore);
     for (int i=0; i<3; ++i) devmenu_nav(restore, DM_DOWN);
     devmenu_nav(restore, DM_OK); devmenu_nav(restore, DM_OK);
-    for (int i=0; i<7; ++i) devmenu_nav(restore, DM_DOWN);
+    for (int i=0; i<8; ++i) devmenu_nav(restore, DM_DOWN);
     devmenu_nav(restore, DM_OK); /* Content Restoration, after unchanged Teammates row. */
     assert(!s.restore_ed && !s.restore_scumm);
     devmenu_nav(restore, DM_OK); assert(s.restore_ed && !s.restore_scumm);
@@ -51,7 +51,7 @@ int main(void)
     SDL_RenderPresent(r);
     devmenu_free(m); /* texture cleanup must precede renderer/video teardown */
     /* Original never offers an enhancement entry, even with stale ON values. */
-    dm_state_t original = {.hold_walk = true, .object_snap = true, .quick_verbs = true,
+    dm_state_t original = {.hold_walk = true, .object_snap = true, .quick_verbs = true, .direct_walk = true,
                            .smooth_display = true, .graphics_sample = true, .kid_switching = true,
                            .restore_ed = true, .restore_scumm = true};
     m = devmenu_create(&original, NULL); assert(m);
@@ -60,7 +60,7 @@ int main(void)
     devmenu_nav(m, DM_OK); /* Options */
     devmenu_nav(m, DM_OK); /* Original's first item is fast-forward, not Enhancements. */
     assert(original.ff_on);
-    assert(original.hold_walk && original.object_snap && original.quick_verbs);
+    assert(original.hold_walk && original.object_snap && original.quick_verbs && original.direct_walk);
     assert(original.smooth_display && original.graphics_sample && original.kid_switching);
     assert(original.restore_ed && original.restore_scumm);
     devmenu_free(m);
