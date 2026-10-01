@@ -125,8 +125,18 @@ direction.
 
 ## Limits
 
-- Physical controller, keyboard and handheld acceptance are not claimed.
-  Gestures are tested through the same combined host input byte.
+- The integrator's isolated XTest keyboard and virtual Xbox check passed the
+  boot chooser and 100 existing input frames, followed by 220 frames exercising
+  both new combos. All device-pair machine states matched: free cursor x=40,
+  one visible snap, kid (30,57) to (42,57), six requests consumed, and zero
+  cursor changes during walking. This uses production keymap/pad adapters;
+  physical controller and handheld acceptance remain unverified.
+- The integrated blizzpc gate passed all 11 CTest suites, boot 1,200 and smoke
+  900 Mesen frame hashes, Original/stale-settings/Enhanced-OFF 900 hashes and
+  window identity, save isolation, menu persistence/reload including
+  `direct_walk`, and dev-menu quick-save/load. One field fixture was rerun
+  through the new ROM diagnostic with zero failures. Logs and captures remain
+  owner-local under `~/scratch/mm-controller-integrator/results` on blizzpc.
 - Chases, timed events and every room's walk boxes are not exhaustively
   tested. Fixtures cover the front-yard/road field states.
 - After release the kid finishes its leg (up to 4 columns / 8 rows). There is

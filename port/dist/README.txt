@@ -1,7 +1,10 @@
-Maniac Mansion (NES) native port for Linux x86_64
+Maniac Mansion (NES) host runtime for Linux x86_64
 =================================================
 
 This runs YOUR OWN Maniac Mansion (USA) NES ROM. No game data is included.
+Host input and presentation code are native C. The retail game, walking,
+scripts, rendering and audio still execute through a 6502 interpreter;
+this is an interim hybrid runtime, not a native game engine.
 The ROM is checked by SHA-256 (No-Intro "Maniac Mansion (USA)", 262,160
 bytes); a clean dump with a different iNES header is also accepted.
 
@@ -27,6 +30,16 @@ Dev menu is on in this preview; set dev_menu=off to hide it.
   pixel aspect, overscan crop, and only entries that have been verified.
   Hide it: [dev] dev_menu = off in config.ini, or MM_DEV_MENU=0.
   MM_CHEATS=0 disables it completely.
+
+Each boot defaults to Original. Enhanced has separate quick saves and preserves
+the Original battery file; all enhancement options default OFF.
+Under Options > Enhancements, object snap keeps plain D-pad movement free:
+hold B and press a direction to snap. A lone B tap acts on release.
+The separate A + D-PAD: WALK KID option requests short walk legs with Go to
+selected and the pointer in the scene, keeping the cursor still. The kid
+finishes the current leg after release (up to 4 columns / 8 rows); there is a
+retail start-up pause between legs. With it ON, a plain A press can arrive
+up to 100 ms late. Keyboard equivalents are Z + arrows and X + arrows.
 
 Battery save: ~/.local/share/maniac-mansion-port/saves/maniac-mansion-usa.sav
 Config:       ~/.config/maniac-mansion-port/config.ini (see config.example.ini)

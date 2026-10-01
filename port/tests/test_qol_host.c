@@ -111,7 +111,7 @@ int main(int argc, char **argv)
     qol_native_t qk,qg;qol_native_init(&qk);qol_native_init(&qg);
     qol_options_t o={true,true,true};
     void *a=malloc(z),*b=malloc(z);uint8_t prior=0;unsigned checked=0;
-    /* Neutral, held Select -> chooser, choose Push, B free-cursor modifier,
+    /* Neutral, held Select -> chooser, choose Push, B snap modifier,
      * lone A, movement, release. These are real device-input parity checks. */
     for(unsigned frame=0;frame<100;frame++) {
         uint8_t desired=frame<2?0:frame<25?PAD_SELECT:frame<28?0:frame<31?PAD_RIGHT:
@@ -141,6 +141,57 @@ int main(int argc, char **argv)
     for(int i=0;i<8;i++)fake(d,XKeysymToKeycode(d,symbols[i]),False,CurrentTime);
     XSync(d,False);
     printf("SDL keyboard/Xbox virtual controller: %u native-frame states identical; failures=%d\n",checked,errors);
+    /* Exercise both new combos through the same real device adapters. Reload
+     * the local Walk-to field fixture so the earlier Push selection cannot
+     * silently turn the direct-walk check into an ineligible pass-through. */
+    VERIFY(nes_state_load(&keyboard_nes,state,got,id));
+    VERIFY(nes_state_load(&controller_nes,state,got,id));
+    VERIFY(bus_peek(&keyboard_nes,0x611a)==13);
+    qol_native_init(&qk);qol_native_init(&qg);
+    o=(qol_options_t){.object_snap=true,.direct_walk=true};
+    VERIFY(qol_native_cursor(&keyboard_nes,24,100));
+    VERIFY(qol_native_cursor(&controller_nes,24,100));
+    int walk_x0=0,walk_y0=0,walk_x1=0,walk_y1=0;
+    unsigned free_x=0,snap_hits=0,cursor_changes=0;
+    prior=0;
+    for(unsigned frame=0;frame<220;frame++) {
+        uint8_t desired=frame<10?0:frame<25?PAD_RIGHT:frame<30?0:
+            frame<35?(PAD_B|PAD_RIGHT):frame<80?0:frame<84?PAD_A:
+            frame<170?(PAD_A|PAD_RIGHT):0;
+        if(frame==70) {
+            VERIFY(qol_native_cursor(&keyboard_nes,24,100));
+            VERIFY(qol_native_cursor(&controller_nes,24,100));
+        }
+        if(frame==80) VERIFY(sw_native_actor(&keyboard_nes,&walk_x0,&walk_y0));
+        for(int i=0;i<8;i++) {
+            uint8_t bit=1u<<i;
+            if((desired&bit)!=(prior&bit))fake(d,XKeysymToKeycode(d,symbols[i]),(desired&bit)!=0,CurrentTime);
+            SDL_JoystickSetVirtualButton(joy,buttons[i],(desired&bit)!=0);
+        }
+        XSync(d,False);SDL_Delay(2);SDL_PumpEvents();SDL_GameControllerUpdate();
+        uint8_t keyboard=0;const uint8_t *keys=SDL_GetKeyboardState(NULL);
+        for(int i=0;i<8;i++)if(keys[km.key[i]])keyboard|=1u<<i;
+        uint8_t hot=0;uint8_t controller=pads_poll(&pads,&hot);
+        VERIFY(keyboard==desired);VERIFY(controller==desired);
+        qol_native_update(&keyboard_nes,&qk,o,keyboard,true);
+        qol_native_update(&controller_nes,&qg,o,controller,true);
+        nes_set_pad(&keyboard_nes,0,keyboard);nes_set_pad(&controller_nes,0,controller);
+        nes_run_frame(&keyboard_nes);nes_run_frame(&controller_nes);
+        nes_state_save(&keyboard_nes,a,id);nes_state_save(&controller_nes,b,id);
+        VERIFY(!memcmp(a,b,z));
+        VERIFY(qk.sw.requests==qg.sw.requests);VERIFY(qk.sw.consumed==qg.sw.consumed);
+        if(frame==24) free_x=bus_peek(&keyboard_nes,0x7116);
+        if(frame==31 && qk.highlight) snap_hits++;
+        if(frame>=80 && (bus_peek(&keyboard_nes,0x7116)!=24 || bus_peek(&keyboard_nes,0x7118)!=100))cursor_changes++;
+        prior=desired;
+    }
+    VERIFY(sw_native_actor(&keyboard_nes,&walk_x1,&walk_y1));
+    VERIFY(free_x>24);VERIFY(snap_hits==1);VERIFY(cursor_changes==0);
+    VERIFY(qk.sw.requests>0);VERIFY(qk.sw.requests==qk.sw.consumed);
+    VERIFY(qk.sw.timeouts==0 && qk.sw.cancels==0 && !qk.sw.pending);
+    VERIFY(walk_x1>walk_x0);
+    printf("SDL new combos: 220 keyboard/Xbox states identical; free cursor x=%u, snap=%u, kid %d,%d -> %d,%d, requests=%u consumed=%u, cursor_changes=%u; failures=%d\n",
+        free_x,snap_hits,walk_x0,walk_y0,walk_x1,walk_y1,qk.sw.requests,qk.sw.consumed,cursor_changes,errors);
     pads_close(&pads,SDL_JoystickInstanceID(joy));SDL_JoystickDetachVirtual(index);
     config_free(cfg);SDL_DestroyWindow(w);SDL_Quit();dlclose(xtst);
     free(state);free(a);free(b);free(keyboard_nes.apu.out);free(controller_nes.apu.out);cart_free(&cart);

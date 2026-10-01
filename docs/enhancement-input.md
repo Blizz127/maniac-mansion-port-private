@@ -5,7 +5,7 @@ input byte unchanged and does not inspect or mutate the NES. ROM identity gating
 menu/chord adjudication, trace playback exclusion and one call per emulated frame
 belong to the host integrator. The adapter targets the pinned USA ROM only.
 
-## Proposed mapping
+## Current mapping
 
 Tap A keeps native activation. Holding A for 250 ms permits continued Walk-to
 updates only when the current verb is native Go To, the cursor is over an empty native scene hit-test point,
@@ -18,7 +18,7 @@ and require neutral input before resuming. This does not alter actor speed,
 script scheduling, NPCs, music, chase rules or timed puzzles.
 
 Current New kid (verb 7) preserves native scene actor selection and bypasses
-object snapping and the B free-cursor modifier.
+object snapping and its B modifier.
 
 With quick verbs enabled, a Select press is withheld for 250 ms. A short release
 produces one native Select pulse (the existing Get/Use/Open cycle); a longer hold opens a
@@ -31,15 +31,20 @@ of verbs. Include Walk to, Push, Pull, Give, Open, Close, Pick up, Use, Read,
 Turn on, Turn off and New kid. Controller and keyboard use the same combined input path.
 
 Object snapping uses directional half-planes, weighted squared distance (four
-times lateral distance squared) and lower object ID to break exact ties. Selection
-should survive provider list reordering. Native free cursor remains available
-when snapping is disabled and while B plus a direction is held. With both
-hold-walk and snapping enabled, A plus a direction uses the native free cursor
-while native Walk-to is selected; directional snapping resumes on new edges
-after A is released. Object targets still cancel continued hold updates.
-B plus a direction consumes B as a modifier;
-a lone B retains its native action. Highlight only the
-currently selected visible hit-test point and clear it on room/actor changes.
+times lateral distance squared) and lower object ID to break exact ties. Plain
+d-pad/arrow movement remains the retail free cursor even with snapping ON.
+Hold B and press a direction to snap; the modifier consumes B so it does not
+cancel a two-object sentence. A lone B tap forwards one retail action on release.
+Highlight only the selected visible hit-test point and clear it on room/actor changes.
+
+The separate `direct_walk` option is OFF by default. With Walk to selected and
+the pointer in the scene, A + direction requests a short walk leg while keeping
+the cursor still. A plain A press can arrive up to 100 ms late while this option
+is ON. After release the kid finishes its current leg, up to 4 columns / 8 rows;
+retail start-up produces pauses between legs. The native C policy and semantic
+input adapter execute no guest instructions and use no CPU trampoline. Retail
+script 4, pathing, walking, rendering and audio remain interpreted. See
+[enhancement-snapwalk.md](enhancement-snapwalk.md) for routine evidence and limits.
 
 ## Native ABI evidence and limits
 
@@ -74,7 +79,7 @@ of chase/menu safety.
 ## Integration and acceptance
 
 Compile `port/src/host/qol_input.c` into host and policy-test targets. Persist
-three false-default options independently. Never call the adapter when all are
+four false-default input options independently. Never call the adapter when all are
 off or while replaying input traces. Apply existing pad-selection and developer
 chord logic first, then combine keyboard/controller input once. The bound callback builds context
 from guarded native state. Native input callbacks must have an explicit release

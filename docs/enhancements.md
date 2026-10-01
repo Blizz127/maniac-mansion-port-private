@@ -1,8 +1,9 @@
 # Optional NES enhancements
 
 Task 3b6b23789a0f, isolated from the published mm-r5 baseline (`edf82498`).
-The native 6502 runtime, retail ROM and battery-save format remain the reference.
-Every new enhancement defaults OFF. No release or remote publication is authorized.
+The interpreted retail 6502 runtime, ROM and battery-save format remain the reference.
+Every new enhancement defaults OFF. Useful gated owner-only private builds are
+authorized by the current owner cadence; public publication remains restricted.
 The owner addendum adds a per-boot Original/Enhanced choice; Original ignores
 all enhancement settings and uses the unchanged complete retail-ROM execution
 path. See [enhancement-modes.md](enhancement-modes.md) for boot/save isolation
@@ -34,12 +35,16 @@ point. Native parent-object state controls visibility, including the doormat/key
 case. An object ID, owner nibble or resource-cache entry alone is insufficient.
 A stable nearest directional target needs a deterministic tie break and a free
 cursor escape. There are no hidden-object outlines, puzzle hints or new actions.
-When walking and snapping are both enabled, held A with native Walk-to uses
-the normal D-pad/arrow cursor movement for continuous walking; A release restores
-directional object snapping. Holding B while moving a direction temporarily
-restores free cursor movement;
-the B modifier is consumed so it does not cancel a two-object sentence. Lone B
-retains the native behavior. See enhancement-input.md for the native adapter.
+Plain d-pad/arrow movement now always keeps the retail free cursor with snapping
+ON. B + direction snaps to a visible target; lone B forwards its retail action on
+release. The separate OFF-default A + direction walking option keeps the cursor
+still and requests short walk legs through the existing input interface. It
+preserves retail speed/path logic, has a pause between legs, finishes the current
+leg after release, and can delay a plain A press by up to 100 ms. New policy and
+request code are native C; retail scripts, walking, rendering and audio remain
+interpreted. See [enhancement-snapwalk.md](enhancement-snapwalk.md). The September
+30 integrated evidence below describes the earlier candidate and its old snap
+mapping; it does not establish acceptance of the October 1 controller correction.
 
 ## Presentation
 
